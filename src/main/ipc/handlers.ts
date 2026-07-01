@@ -1,4 +1,5 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { writeFile } from 'fs/promises'
 import { IPC } from '@shared/ipc.js'
 import {
   Protocol,
@@ -215,6 +216,35 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const result = await runAov(aovReq)
     dao.saveAnalysisResult(assessmentHeaderId, ENGINE_VERSION, aovReq, result)
     return result
+  })
+
+  // --- Report ---
+  handle(IPC.reportExportPdf, async (opts: unknown): Promise<string | null> => {
+    const { title } = z.object({ title: z.string().default('') }).parse(opts ?? {})
+    const win = getWindow()
+    if (!win) throw new Error('No window to export from.')
+
+    const res = await dialog.showSaveDialog(win, {
+      title: 'Export Report PDF',
+      defaultPath: `${(title || 'trial').replace(/[^\w.-]+/g, '_')}-report.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (res.canceled || !res.filePath) return null
+
+    const esc = (s: string): string =>
+      s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
+    const margin = '<div style="font-size:8px; width:100%; padding:0 12mm; color:#666;">'
+    const data = await win.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      displayHeaderFooter: true,
+      margins: { top: 0.7, bottom: 0.7, left: 0.6, right: 0.6 }, // inches; non-zero so templates show
+      headerTemplate: `${margin}${esc(title)}</div>`,
+      footerTemplate: `${margin.replace('color:#666;', 'color:#666; display:flex; justify-content:space-between;')}<span>Open ARM</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+    })
+    await writeFile(res.filePath, data)
+    shell.openPath(res.filePath)
+    return res.filePath
   })
 
   // --- Environment ---

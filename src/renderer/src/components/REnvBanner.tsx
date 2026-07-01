@@ -12,7 +12,7 @@ export function REnvBanner(): JSX.Element | null {
   if (!rEnv || (rEnv.rscriptFound && rEnv.agricolaeInstalled)) return null
 
   return (
-    <div className="banner">
+    <div className="banner no-print">
       <strong>Statistics engine not ready.</strong> {rEnv.message}
       <div className="row" style={{ marginTop: 8 }}>
         <div style={{ flex: 1, minWidth: 240 }}>

@@ -27,6 +27,9 @@ export const IPC = {
   // Stats
   statsRunAov: 'stats:runAov',
 
+  // Report
+  reportExportPdf: 'report:exportPdf',
+
   // Environment / R
   envDetectR: 'env:detectR',
   envSetRscriptPath: 'env:setRscriptPath'

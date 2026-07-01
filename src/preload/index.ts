@@ -57,6 +57,10 @@ const api = {
     runAov: (headerId: number, req: AovRequest): Promise<AovResult> =>
       ipcRenderer.invoke(IPC.statsRunAov, headerId, req)
   },
+  report: {
+    exportPdf: (opts: { title: string }): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.reportExportPdf, opts)
+  },
   env: {
     detectR: (): Promise<REnvStatus> => ipcRenderer.invoke(IPC.envDetectR),
     setRscriptPath: (p: string): Promise<REnvStatus> =>

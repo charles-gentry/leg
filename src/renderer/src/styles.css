@@ -349,3 +349,97 @@ select:disabled {
 .checkbox-inline input {
   width: auto;
 }
+
+/* ---------------------------------------------------------------------------
+   Print / PDF. Both browser print and Electron webContents.printToPDF() render
+   under `print` media, so this stylesheet is what turns the Report view into a
+   clean document (no app chrome). See ReportView + report:exportPdf.
+--------------------------------------------------------------------------- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 16mm;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto;
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Drop the app shell — print only the report document. */
+  .app-header,
+  .sidebar,
+  .busy-bar,
+  .error-toast,
+  .no-print {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+  }
+  .main {
+    padding: 0;
+    overflow: visible;
+  }
+
+  /* Flatten cards into plain document sections. */
+  .card {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    margin: 0 0 14px;
+    border-radius: 0;
+  }
+
+  /* Keep tables and per-assessment blocks intact across page breaks; repeat
+     table headers on each page; start each assessment on a fresh page. */
+  table,
+  .report-assessment {
+    break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  .report-assessment {
+    break-before: page;
+  }
+
+  /* Report title block. */
+  .report-title {
+    margin-bottom: 4px;
+  }
+  .report-title h1 {
+    font-size: 20pt;
+    margin: 0;
+  }
+  .report-meta th {
+    text-align: left;
+    color: #333;
+    font-weight: 600;
+    padding-right: 12px;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+
+  table.data th,
+  table.data td {
+    border-color: #999;
+  }
+}
+
+/* Report document title block (also used lightly on screen). */
+.report-title h1 {
+  margin: 0 0 2px;
+}
+.report-subtitle {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
