@@ -3,24 +3,21 @@ import type { ProjectSnapshot, REnvStatus, AovResult } from '@shared/types'
 
 export type ViewId = 'protocol' | 'site' | 'trialmap' | 'assessments' | 'stats' | 'report'
 
-export interface LastAov {
-  headerId: number
-  result: AovResult
-}
-
 interface AppState {
   snapshot: ProjectSnapshot | null
   view: ViewId
   rEnv: REnvStatus | null
   busy: string | null // label of an in-flight operation, or null
   error: string | null
-  lastAov: LastAov | null
+  /** ANOVA results keyed by assessment header id, shared by Stats and Report. */
+  aovResults: Record<number, AovResult>
 
   setView: (v: ViewId) => void
   setSnapshot: (s: ProjectSnapshot | null) => void
   setREnv: (s: REnvStatus | null) => void
   setError: (e: string | null) => void
-  setLastAov: (a: LastAov | null) => void
+  setAov: (headerId: number, result: AovResult) => void
+  resetAov: () => void
   /** Run an async op with a busy label + centralized error capture. */
   run: <T>(label: string, fn: () => Promise<T>) => Promise<T | undefined>
 }
@@ -31,13 +28,21 @@ export const useStore = create<AppState>((set) => ({
   rEnv: null,
   busy: null,
   error: null,
-  lastAov: null,
+  aovResults: {},
 
   setView: (view) => set({ view }),
-  setSnapshot: (snapshot) => set({ snapshot }),
+  setSnapshot: (snapshot) =>
+    set((state) => {
+      // Drop cached ANOVA results when switching to a different file.
+      const changedFile =
+        snapshot?.filePath !== state.snapshot?.filePath ? { aovResults: {} } : {}
+      return { snapshot, ...changedFile }
+    }),
   setREnv: (rEnv) => set({ rEnv }),
   setError: (error) => set({ error }),
-  setLastAov: (lastAov) => set({ lastAov }),
+  setAov: (headerId, result) =>
+    set((state) => ({ aovResults: { ...state.aovResults, [headerId]: result } })),
+  resetAov: () => set({ aovResults: {} }),
 
   run: async (label, fn) => {
     set({ busy: label, error: null })

@@ -60,7 +60,8 @@ CREATE TABLE IF NOT EXISTS assessment_def (
   timing      TEXT NOT NULL DEFAULT '',
   rating_date TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
-  ordinal     INTEGER NOT NULL DEFAULT 0
+  ordinal     INTEGER NOT NULL DEFAULT 0,
+  analyze     INTEGER NOT NULL DEFAULT 1 -- include in ANOVA / report
 );
 
 -- The local trial instance. design/replicates/plot dimensions live on the protocol;
@@ -107,7 +108,8 @@ CREATE TABLE IF NOT EXISTS assessment_header (
   description TEXT NOT NULL DEFAULT '',
   ordinal     INTEGER NOT NULL DEFAULT 0,
   origin      TEXT NOT NULL DEFAULT 'site' CHECK (origin IN ('core', 'site')),
-  locked      INTEGER NOT NULL DEFAULT 0
+  locked      INTEGER NOT NULL DEFAULT 0,
+  analyze     INTEGER NOT NULL DEFAULT 1 -- include in ANOVA / report
 );
 CREATE INDEX IF NOT EXISTS idx_header_trial ON assessment_header(trial_id);
 

@@ -113,7 +113,9 @@ export const AssessmentDef = z.object({
   timing: z.string().default(''),
   ratingDate: z.string().default(''),
   description: z.string().default(''),
-  ordinal: z.number().int().default(0)
+  ordinal: z.number().int().default(0),
+  /** Whether this assessment is included in ANOVA and the report. */
+  analyze: z.boolean().default(true)
 })
 export type AssessmentDef = z.infer<typeof AssessmentDef>
 

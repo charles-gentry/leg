@@ -97,7 +97,8 @@ describe('trial + plots + assessments', () => {
       description: 'Control',
       ordinal: 0,
       origin: 'core',
-      locked: true
+      locked: true,
+      analyze: true
     })
     return { headerId, plots: dao.listPlots(trialId) }
   }
@@ -158,13 +159,14 @@ describe('trial + plots + assessments', () => {
 describe('assessment definitions', () => {
   it('replaces and lists protocol-owned assessment defs', () => {
     const defs: AssessmentDef[] = [
-      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '7 DA-A', ratingDate: '', description: 'Control 7', ordinal: 0 },
-      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '14 DA-A', ratingDate: '', description: 'Control 14', ordinal: 1 }
+      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '7 DA-A', ratingDate: '', description: 'Control 7', ordinal: 0, analyze: true },
+      { partRated: 'PLANT', ratingType: 'NOTE', ratingUnit: '', timing: '', ratingDate: '', description: 'Notes', ordinal: 1, analyze: false }
     ]
     dao.replaceAssessmentDefs(defs)
     const back = dao.listAssessmentDefs()
     expect(back).toHaveLength(2)
-    expect(back.map((d) => d.timing)).toEqual(['7 DA-A', '14 DA-A'])
+    expect(back.map((d) => d.timing)).toEqual(['7 DA-A', ''])
+    expect(back.map((d) => d.analyze)).toEqual([true, false]) // analyze flag round-trips
   })
 })
 
@@ -178,7 +180,7 @@ describe('protocol → trial', () => {
       [1, 2].map((n) => ({ number: n, name: `T${n}`, product: '', rate: '', rateUnit: '', type: '' }))
     )
     dao.replaceAssessmentDefs([
-      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '14 DA-A', ratingDate: '', description: 'Control', ordinal: 0 }
+      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '14 DA-A', ratingDate: '', description: 'Control', ordinal: 0, analyze: false }
     ])
     const uid = dao.getProtocol().protocolUid
     closeProject()
@@ -212,6 +214,7 @@ describe('protocol → trial', () => {
     expect(headers).toHaveLength(1)
     expect(headers[0].origin).toBe('core')
     expect(headers[0].locked).toBe(true)
+    expect(headers[0].analyze).toBe(false) // analyze flag carried from the protocol def
   })
 
   it('guards lock protocol + core edits but allow site columns in a trial', () => {
@@ -238,7 +241,8 @@ describe('protocol → trial', () => {
       description: 'Site column',
       ordinal: 1,
       origin: 'site',
-      locked: false
+      locked: false,
+      analyze: true
     })
     expect(() => assertHeaderEditable(siteId)).not.toThrow()
   })

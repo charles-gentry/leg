@@ -148,7 +148,8 @@ export function listAssessmentDefs(db: Database.Database = getDb()): AssessmentD
     timing: r.timing as string,
     ratingDate: r.rating_date as string,
     description: r.description as string,
-    ordinal: r.ordinal as number
+    ordinal: r.ordinal as number,
+    analyze: !!(r.analyze as number)
   }))
 }
 
@@ -156,10 +157,10 @@ export function replaceAssessmentDefs(defs: AssessmentDef[], db: Database.Databa
   const tx = db.transaction((items: AssessmentDef[]) => {
     db.prepare('DELETE FROM assessment_def').run()
     const ins = db.prepare(
-      `INSERT INTO assessment_def (part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal)
-       VALUES (@partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal)`
+      `INSERT INTO assessment_def (part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal, analyze)
+       VALUES (@partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal, @analyze)`
     )
-    items.forEach((d, i) => ins.run({ ...d, ordinal: d.ordinal ?? i }))
+    items.forEach((d, i) => ins.run({ ...d, ordinal: d.ordinal ?? i, analyze: d.analyze === false ? 0 : 1 }))
   })
   tx(defs)
 }
@@ -264,7 +265,8 @@ export function listAssessmentHeaders(
     description: r.description as string,
     ordinal: r.ordinal as number,
     origin: r.origin as AssessmentHeader['origin'],
-    locked: !!(r.locked as number)
+    locked: !!(r.locked as number),
+    analyze: !!(r.analyze as number)
   }))
 }
 
@@ -272,20 +274,21 @@ export function upsertAssessmentHeader(
   h: AssessmentHeader,
   db: Database.Database = getDb()
 ): number {
+  const flags = { locked: h.locked ? 1 : 0, analyze: h.analyze === false ? 0 : 1 }
   if (h.id) {
     db.prepare(
       `UPDATE assessment_header SET part_rated=@partRated, rating_type=@ratingType,
         rating_unit=@ratingUnit, timing=@timing, rating_date=@ratingDate,
-        description=@description, ordinal=@ordinal, origin=@origin, locked=@locked WHERE id=@id`
-    ).run({ ...h, locked: h.locked ? 1 : 0 })
+        description=@description, ordinal=@ordinal, origin=@origin, locked=@locked, analyze=@analyze WHERE id=@id`
+    ).run({ ...h, ...flags })
     return h.id
   }
   const info = db
     .prepare(
-      `INSERT INTO assessment_header (trial_id, part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal, origin, locked)
-       VALUES (@trialId, @partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal, @origin, @locked)`
+      `INSERT INTO assessment_header (trial_id, part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal, origin, locked, analyze)
+       VALUES (@trialId, @partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal, @origin, @locked, @analyze)`
     )
-    .run({ ...h, origin: h.origin ?? 'site', locked: h.locked ? 1 : 0 })
+    .run({ ...h, origin: h.origin ?? 'site', ...flags })
   return info.lastInsertRowid as number
 }
 
@@ -309,7 +312,8 @@ export function getAssessmentHeader(
     description: r.description as string,
     ordinal: r.ordinal as number,
     origin: r.origin as AssessmentHeader['origin'],
-    locked: !!(r.locked as number)
+    locked: !!(r.locked as number),
+    analyze: !!(r.analyze as number)
   }
 }
 
@@ -413,7 +417,8 @@ export function materializeCoreHeaders(trialId: number, db: Database.Database = 
         description: d.description,
         ordinal: d.ordinal ?? i,
         origin: 'core',
-        locked: true
+        locked: true,
+        analyze: d.analyze
       },
       db
     )

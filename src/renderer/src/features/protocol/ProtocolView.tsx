@@ -245,10 +245,15 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
         ratingDate: '',
         description:
           [draft.ratingType, draft.partRated, draft.timing].filter(Boolean).join(' ') || 'Assessment',
-        ordinal: defs.length
+        ordinal: defs.length,
+        analyze: true
       }
     ])
     setDraft({ partRated: '', ratingType: '', ratingUnit: '', timing: '' })
+  }
+
+  const toggleAnalyze = (i: number): void => {
+    save(defs.map((d, idx) => (idx === i ? { ...d, analyze: !d.analyze } : d)))
   }
 
   return (
@@ -266,6 +271,7 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
               <th>Part rated</th>
               <th>Unit</th>
               <th>Timing</th>
+              <th style={{ width: 80 }}>Analyze</th>
               {!readOnly && <th style={{ width: 40 }}></th>}
             </tr>
           </thead>
@@ -276,6 +282,15 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
                 <td>{d.partRated || '—'}</td>
                 <td>{d.ratingUnit || '—'}</td>
                 <td>{d.timing || '—'}</td>
+                <td className="num">
+                  <input
+                    type="checkbox"
+                    checked={d.analyze}
+                    disabled={readOnly}
+                    onChange={() => toggleAnalyze(i)}
+                    title="Include this assessment in ANOVA and the report"
+                  />
+                </td>
                 {!readOnly && (
                   <td>
                     <button onClick={() => save(defs.filter((_, idx) => idx !== i))}>✕</button>
