@@ -111,7 +111,7 @@ function HeaderManager({
   headers: AssessmentHeader[]
 }): JSX.Element {
   const { snapshot, setSnapshot, run } = useStore()
-  const [draft, setDraft] = useState({ partRated: '', ratingType: '', ratingUnit: '', timing: '' })
+  const [draft, setDraft] = useState({ partRated: '', ratingType: '', ratingUnit: '', timing: '', analyze: true })
 
   const add = (): void => {
     run('Adding assessment', async () => {
@@ -126,16 +126,24 @@ function HeaderManager({
           [draft.ratingType, draft.partRated, draft.timing].filter(Boolean).join(' ') || 'Assessment',
         ordinal: headers.length,
         origin: 'site',
-        locked: false
+        locked: false,
+        analyze: draft.analyze
       })
       setSnapshot({ ...snapshot!, assessmentHeaders: next })
-      setDraft({ partRated: '', ratingType: '', ratingUnit: '', timing: '' })
+      setDraft({ partRated: '', ratingType: '', ratingUnit: '', timing: '', analyze: true })
     })
   }
 
   const remove = (id: number): void => {
     run('Removing assessment', async () => {
       const next = await window.arm.assessments.deleteHeader(id)
+      setSnapshot({ ...snapshot!, assessmentHeaders: next })
+    })
+  }
+
+  const toggleAnalyze = (h: AssessmentHeader): void => {
+    run('Updating assessment', async () => {
+      const next = await window.arm.assessments.upsertHeader({ ...h, analyze: !h.analyze })
       setSnapshot({ ...snapshot!, assessmentHeaders: next })
     })
   }
@@ -155,6 +163,7 @@ function HeaderManager({
               <th>Part rated</th>
               <th>Unit</th>
               <th>Timing</th>
+              <th style={{ width: 70 }}>Analyze</th>
               <th style={{ width: 40 }}></th>
             </tr>
           </thead>
@@ -172,6 +181,19 @@ function HeaderManager({
                 <td>{h.partRated || '—'}</td>
                 <td>{h.ratingUnit || '—'}</td>
                 <td>{h.timing || '—'}</td>
+                <td className="num">
+                  <input
+                    type="checkbox"
+                    checked={h.analyze}
+                    disabled={h.origin === 'core'}
+                    onChange={() => toggleAnalyze(h)}
+                    title={
+                      h.origin === 'core'
+                        ? 'Set by the protocol'
+                        : 'Include this assessment in ANOVA and the report'
+                    }
+                  />
+                </td>
                 <td>{h.origin === 'core' || h.locked ? null : <button onClick={() => remove(h.id!)}>✕</button>}</td>
               </tr>
             ))}
@@ -211,6 +233,14 @@ function HeaderManager({
             onChange={(e) => setDraft({ ...draft, timing: e.target.value })}
           />
         </div>
+        <label className="checkbox-inline">
+          <input
+            type="checkbox"
+            checked={draft.analyze}
+            onChange={(e) => setDraft({ ...draft, analyze: e.target.checked })}
+          />
+          Analyze
+        </label>
         <button className="primary" onClick={add}>
           + Add column
         </button>

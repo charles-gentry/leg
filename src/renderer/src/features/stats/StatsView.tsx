@@ -3,8 +3,9 @@ import { useStore } from '../../store'
 import type { MeanComparisonTest, AlphaLevel } from '@shared/types'
 import { buildObservations } from './buildData'
 import { MeansTable } from './MeansTable'
+import { AnovaTable } from './AnovaTable'
 
-const TESTS: { id: MeanComparisonTest; label: string }[] = [
+export const TESTS: { id: MeanComparisonTest; label: string }[] = [
   { id: 'LSD', label: "Fisher's LSD" },
   { id: 'TUKEY', label: "Tukey's HSD" },
   { id: 'DUNCAN', label: "Duncan's MRT" },
@@ -12,8 +13,9 @@ const TESTS: { id: MeanComparisonTest; label: string }[] = [
 ]
 
 export function StatsView(): JSX.Element {
-  const { snapshot, rEnv, lastAov, setLastAov, run } = useStore()
-  const headers = snapshot!.assessmentHeaders
+  const { snapshot, rEnv, aovResults, setAov, run } = useStore()
+  // Only assessments flagged for analysis are eligible.
+  const headers = snapshot!.assessmentHeaders.filter((h) => h.analyze)
   const [headerId, setHeaderId] = useState<number | null>(headers[0]?.id ?? null)
   const [test, setTest] = useState<MeanComparisonTest>('LSD')
   const [alpha, setAlpha] = useState<AlphaLevel>(0.05)
@@ -33,11 +35,11 @@ export function StatsView(): JSX.Element {
         alpha,
         data: obs
       })
-      setLastAov({ headerId, result })
+      setAov(headerId, result)
     })
   }
 
-  const result = lastAov?.headerId === headerId ? lastAov.result : null
+  const result = headerId != null ? aovResults[headerId] ?? null : null
 
   return (
     <>
@@ -96,43 +98,7 @@ export function StatsView(): JSX.Element {
         <>
           <div className="card">
             <h2>Analysis of Variance</h2>
-            <div className="row" style={{ marginBottom: 12 }}>
-              <span className="chip">Grand mean {result.grandMean.toFixed(3)}</span>
-              <span className="chip">CV {result.cv.toFixed(2)}%</span>
-              {result.lsd != null && (
-                <span className="chip">
-                  {result.criticalValueLabel} {result.lsd.toFixed(3)}
-                </span>
-              )}
-              <span className={result.significant ? 'sig-yes' : 'sig-no'}>
-                Treatment effect {result.significant ? 'significant' : 'not significant'} at α ={' '}
-                {result.alpha}
-              </span>
-            </div>
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Source</th>
-                  <th className="num">df</th>
-                  <th className="num">SS</th>
-                  <th className="num">MS</th>
-                  <th className="num">F</th>
-                  <th className="num">Pr(&gt;F)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.anova.map((r) => (
-                  <tr key={r.source}>
-                    <td>{r.source}</td>
-                    <td className="num">{r.df}</td>
-                    <td className="num">{r.ss.toFixed(3)}</td>
-                    <td className="num">{r.ms.toFixed(3)}</td>
-                    <td className="num">{r.f != null ? r.f.toFixed(3) : ''}</td>
-                    <td className="num">{r.pValue != null ? r.pValue.toFixed(4) : ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <AnovaTable result={result} />
           </div>
 
           <div className="card">
