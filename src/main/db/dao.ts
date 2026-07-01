@@ -184,14 +184,15 @@ export function getTrial(db: Database.Database = getDb()): Trial | null {
     state: r.state as string,
     country: r.country as string,
     plantingDate: r.planting_date as string,
-    trialNotes: r.trial_notes as string
+    trialNotes: r.trial_notes as string,
+    layoutLockedAt: r.layout_locked_at as string
   }
 }
 
 /** Persist a freshly generated trial + its plots, replacing any prior trial. */
 export function replaceTrialWithPlots(
-  trial: Omit<Trial, 'id'>,
-  plots: Omit<Plot, 'id' | 'trialId'>[],
+  trial: Omit<Trial, 'id' | 'layoutLockedAt'>,
+  plots: Omit<Plot, 'id' | 'trialId' | 'excluded' | 'excludeReason'>[],
   db: Database.Database = getDb()
 ): number {
   const tx = db.transaction(() => {
@@ -226,7 +227,9 @@ export function listPlots(trialId: number, db: Database.Database = getDb()): Plo
     rep: r.rep as number,
     treatmentId: r.treatment_id as number,
     mapRow: r.map_row as number,
-    mapCol: r.map_col as number
+    mapCol: r.map_col as number,
+    excluded: !!(r.excluded as number),
+    excludeReason: r.exclude_reason as string
   }))
 }
 
@@ -243,8 +246,31 @@ export function getPlot(id: number, db: Database.Database = getDb()): Plot | nul
     rep: r.rep as number,
     treatmentId: r.treatment_id as number,
     mapRow: r.map_row as number,
-    mapCol: r.map_col as number
+    mapCol: r.map_col as number,
+    excluded: !!(r.excluded as number),
+    excludeReason: r.exclude_reason as string
   }
+}
+
+/** Confirm & lock the layout: stamp the trial with an ISO timestamp. One-way. */
+export function lockLayout(db: Database.Database = getDb()): string {
+  const ts = new Date().toISOString()
+  db.prepare(`UPDATE trial SET layout_locked_at = ?`).run(ts)
+  return ts
+}
+
+/** Flag (or clear) a plot's exclusion from analysis. Data itself is retained. */
+export function setPlotExcluded(
+  plotId: number,
+  excluded: boolean,
+  reason: string,
+  db: Database.Database = getDb()
+): void {
+  db.prepare(`UPDATE plot SET excluded = ?, exclude_reason = ? WHERE id = ?`).run(
+    excluded ? 1 : 0,
+    excluded ? reason : '',
+    plotId
+  )
 }
 
 /** Swap the treatment assignment of two plots (ARM-style hot edit). */

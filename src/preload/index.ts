@@ -39,8 +39,11 @@ const api = {
     open: (): Promise<ProjectSnapshot | null> => ipcRenderer.invoke(IPC.trialOpen),
     generate: (cfg: Partial<SiteMetadata> & { seed?: number }): Promise<ProjectSnapshot> =>
       ipcRenderer.invoke(IPC.trialGenerate, cfg),
+    lockLayout: (): Promise<ProjectSnapshot> => ipcRenderer.invoke(IPC.trialLockLayout),
     swapPlots: (a: number, b: number): Promise<ProjectSnapshot> =>
-      ipcRenderer.invoke(IPC.plotSwap, a, b)
+      ipcRenderer.invoke(IPC.plotSwap, a, b),
+    setPlotExcluded: (plotId: number, excluded: boolean, reason: string): Promise<ProjectSnapshot> =>
+      ipcRenderer.invoke(IPC.plotSetExcluded, { plotId, excluded, reason })
   },
   assessments: {
     saveDefs: (list: AssessmentDef[]): Promise<AssessmentDef[]> =>

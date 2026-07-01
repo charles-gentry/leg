@@ -1,5 +1,5 @@
 import { getRole } from './connection.js'
-import { getAssessmentHeader } from './dao.js'
+import { getAssessmentHeader, getTrial } from './dao.js'
 import type { Role } from '@shared/types.js'
 
 /**
@@ -30,5 +30,19 @@ export function assertHeaderEditable(headerId: number): void {
   const h = getAssessmentHeader(headerId)
   if (h?.origin === 'core' || h?.locked) {
     throw new Error('This assessment is defined by the protocol and cannot be changed.')
+  }
+}
+
+/** Reject layout changes (regenerate/swap) once the layout is locked. */
+export function assertLayoutUnlocked(): void {
+  if (getTrial()?.layoutLockedAt) {
+    throw new Error('The layout is locked and can no longer be changed.')
+  }
+}
+
+/** Reject data entry / analysis / exclusion until the layout is locked. */
+export function assertLayoutLocked(): void {
+  if (!getTrial()?.layoutLockedAt) {
+    throw new Error('Confirm and lock the layout before entering data.')
   }
 }

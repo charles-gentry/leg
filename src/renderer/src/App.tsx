@@ -16,6 +16,7 @@ interface NavItem {
   id: ViewId
   label: string
   needsTrial?: boolean
+  needsLock?: boolean // requires the layout to be confirmed & locked
 }
 
 // Navigation differs by role: a protocol is authored; a trial is implemented.
@@ -28,9 +29,9 @@ const NAV: Record<Role, NavItem[]> = {
     { id: 'protocol', label: 'Protocol (locked)' },
     { id: 'site', label: 'Site & Randomization' },
     { id: 'trialmap', label: 'Trial Map', needsTrial: true },
-    { id: 'assessments', label: 'Assessments', needsTrial: true },
-    { id: 'stats', label: 'Statistics', needsTrial: true },
-    { id: 'report', label: 'Report', needsTrial: true },
+    { id: 'assessments', label: 'Assessments', needsTrial: true, needsLock: true },
+    { id: 'stats', label: 'Statistics', needsTrial: true, needsLock: true },
+    { id: 'report', label: 'Report', needsTrial: true, needsLock: true },
     { id: 'audit', label: 'Audit' }
   ]
 }
@@ -115,6 +116,7 @@ export default function App(): JSX.Element {
 
   const role: Role = snapshot?.role ?? 'protocol'
   const hasTrial = !!snapshot?.trial
+  const layoutLocked = !!snapshot?.trial?.layoutLockedAt
   const nav = NAV[role]
 
   return (
@@ -160,16 +162,21 @@ export default function App(): JSX.Element {
 
       <nav className="sidebar">
         {snapshot &&
-          nav.map((n) => (
-            <button
-              key={n.id}
-              className={`nav-item ${view === n.id ? 'active' : ''}`}
-              disabled={n.needsTrial && !hasTrial}
-              onClick={() => setView(n.id)}
-            >
-              {n.label}
-            </button>
-          ))}
+          nav.map((n) => {
+            const disabled = (n.needsTrial && !hasTrial) || (n.needsLock && !layoutLocked)
+            const title = n.needsLock && !layoutLocked ? 'Confirm & lock the layout first' : undefined
+            return (
+              <button
+                key={n.id}
+                className={`nav-item ${view === n.id ? 'active' : ''}`}
+                disabled={disabled}
+                title={title}
+                onClick={() => setView(n.id)}
+              >
+                {n.label}
+              </button>
+            )
+          })}
       </nav>
 
       <main className="main">

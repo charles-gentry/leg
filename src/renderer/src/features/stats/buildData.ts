@@ -17,7 +17,7 @@ export function buildObservations(snapshot: ProjectSnapshot, headerId: number): 
   for (const v of snapshot.assessmentValues) {
     if (v.assessmentHeaderId !== headerId || v.value === null) continue
     const plot = plotById.get(v.plotId)
-    if (!plot) continue
+    if (!plot || plot.excluded) continue // excluded plots are omitted from analysis
     const treatment = trtNumberById.get(plot.treatmentId)
     if (treatment === undefined) continue
     out.push({ treatment, rep: plot.rep, value: v.value })

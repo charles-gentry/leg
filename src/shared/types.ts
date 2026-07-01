@@ -86,7 +86,9 @@ export const Trial = SiteMetadata.extend({
   protocolId: z.number().int(),
   plotRows: z.number().int().positive(),
   plotCols: z.number().int().positive(),
-  seed: z.number().int()
+  seed: z.number().int(),
+  /** ISO timestamp when the layout was confirmed & locked; '' while a draft. */
+  layoutLockedAt: z.string().default('')
 })
 export type Trial = z.infer<typeof Trial>
 
@@ -97,7 +99,9 @@ export const Plot = z.object({
   rep: z.number().int(),
   treatmentId: z.number().int(),
   mapRow: z.number().int(),
-  mapCol: z.number().int()
+  mapCol: z.number().int(),
+  excluded: z.boolean().default(false),
+  excludeReason: z.string().default('')
 })
 export type Plot = z.infer<typeof Plot>
 

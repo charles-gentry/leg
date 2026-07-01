@@ -80,11 +80,18 @@ export function SiteView(): JSX.Element {
           </strong>{' '}
           (from protocol — locked). This site generates its own randomized layout.
         </p>
-        {trial && (
-          <div className="banner">
-            A layout already exists for this site (seed {trial.seed}). Regenerating replaces it and
-            clears any entered data.
+        {trial?.layoutLockedAt ? (
+          <div className="banner locked">
+            🔒 Layout locked {new Date(trial.layoutLockedAt).toLocaleString()} — the randomization is
+            final and can no longer be regenerated.
           </div>
+        ) : (
+          trial && (
+            <div className="banner">
+              A layout already exists for this site (seed {trial.seed}). Regenerating replaces it and
+              clears any entered data.
+            </div>
+          )
         )}
         <div className="row">
           <div style={{ width: 200 }}>
@@ -93,10 +100,15 @@ export function SiteView(): JSX.Element {
               type="number"
               placeholder="random"
               value={seedText}
+              disabled={!!trial?.layoutLockedAt}
               onChange={(e) => setSeedText(e.target.value)}
             />
           </div>
-          <button className="primary" disabled={!canGenerate} onClick={generate}>
+          <button
+            className="primary"
+            disabled={!canGenerate || !!trial?.layoutLockedAt}
+            onClick={generate}
+          >
             {trial ? 'Regenerate' : 'Generate'} layout ({treatmentCount * protocol.replicates} plots)
           </button>
         </div>

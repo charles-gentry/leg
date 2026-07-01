@@ -16,7 +16,9 @@ export const IPC = {
   trialNewFromProtocol: 'trial:newFromProtocol',
   trialOpen: 'trial:open',
   trialGenerate: 'trial:generate',
+  trialLockLayout: 'trial:lockLayout',
   plotSwap: 'plot:swap',
+  plotSetExcluded: 'plot:setExcluded',
 
   // Assessments
   assessmentHeaderAddSite: 'assessment:header:addSite',

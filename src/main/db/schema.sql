@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS trial (
   state        TEXT NOT NULL DEFAULT '',
   country      TEXT NOT NULL DEFAULT '',
   planting_date TEXT NOT NULL DEFAULT '',
-  trial_notes  TEXT NOT NULL DEFAULT ''
+  trial_notes  TEXT NOT NULL DEFAULT '',
+  layout_locked_at TEXT NOT NULL DEFAULT '' -- ISO timestamp; empty = draft (unlocked)
 );
 
 CREATE TABLE IF NOT EXISTS plot (
@@ -91,6 +92,8 @@ CREATE TABLE IF NOT EXISTS plot (
   treatment_id INTEGER NOT NULL REFERENCES treatment(id) ON DELETE CASCADE,
   map_row      INTEGER NOT NULL,
   map_col      INTEGER NOT NULL,
+  excluded     INTEGER NOT NULL DEFAULT 0,   -- flagged out of analysis (data retained)
+  exclude_reason TEXT NOT NULL DEFAULT '',
   UNIQUE (trial_id, plot_number)
 );
 CREATE INDEX IF NOT EXISTS idx_plot_trial ON plot(trial_id);

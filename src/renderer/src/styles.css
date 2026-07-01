@@ -443,3 +443,57 @@ select:disabled {
   color: var(--muted);
   margin: 0 0 12px;
 }
+
+/* Layout lock + plot exclusion */
+.lock-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #37507a;
+  background: #eef1f6;
+  border: 1px solid #c7d0e0;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.plot-cell.excluded {
+  opacity: 0.55;
+  background: repeating-linear-gradient(
+    45deg,
+    #fbeaea,
+    #fbeaea 6px,
+    #fff 6px,
+    #fff 12px
+  );
+  border-color: var(--danger);
+}
+.plot-cell .excluded-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
+/* Lightweight modal (Electron has no window.prompt) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  width: 440px;
+  max-width: 90vw;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.modal textarea {
+  width: 100%;
+}

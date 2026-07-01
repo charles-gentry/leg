@@ -18,7 +18,13 @@ import { z } from 'zod'
 import { openProject, closeProject, getCurrentPath } from '../db/connection.js'
 import * as dao from '../db/dao.js'
 import { recordAudit, listAudit } from '../db/audit.js'
-import { assertProtocolEditable, assertRole, assertHeaderEditable } from '../db/guards.js'
+import {
+  assertProtocolEditable,
+  assertRole,
+  assertHeaderEditable,
+  assertLayoutLocked,
+  assertLayoutUnlocked
+} from '../db/guards.js'
 
 const PROTO_FILTER = { name: 'Open ARM Protocol', extensions: ['armproto'] }
 const TRIAL_FILTER = { name: 'Open ARM Trial', extensions: ['armtrial'] }
@@ -167,6 +173,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   // --- Trial generation ---
   handle(IPC.trialGenerate, async (input: unknown): Promise<ProjectSnapshot> => {
     assertRole('trial')
+    assertLayoutUnlocked()
     const cfg = GenerateTrialInput.parse(input)
     const protocol = dao.getProtocol()
     const replaced = !!dao.getTrial()
@@ -186,7 +193,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const plotRows = protocol.replicates
     const byNumber = new Map(treatments.map((t) => [t.number, t.id!]))
 
-    const plots: Omit<Plot, 'id' | 'trialId'>[] = randomized.map((rp) => {
+    const plots: Omit<Plot, 'id' | 'trialId' | 'excluded' | 'excludeReason'>[] = randomized.map((rp) => {
       const treatmentId = byNumber.get(rp.treatment)
       if (treatmentId === undefined) {
         throw new Error(`R returned treatment number ${rp.treatment} with no matching treatment row`)
@@ -201,7 +208,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
 
     const site = SiteMetadata.parse(cfg)
-    const trial: Omit<Trial, 'id'> = { protocolId: 1, plotRows, plotCols, seed, ...site }
+    const trial: Omit<Trial, 'id' | 'layoutLockedAt'> = { protocolId: 1, plotRows, plotCols, seed, ...site }
     const trialId = dao.replaceTrialWithPlots(trial, plots)
     // Re-materialize the protocol's core assessment columns onto the fresh trial.
     dao.materializeCoreHeaders(trialId)
@@ -215,6 +222,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
 
   handle(IPC.plotSwap, (a: unknown, b: unknown) => {
+    assertLayoutUnlocked()
     const plotIdA = z.number().int().parse(a)
     const plotIdB = z.number().int().parse(b)
     const pa = dao.getPlot(plotIdA)
@@ -224,6 +232,35 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       a: plotIdA,
       b: plotIdB
     })
+    return dao.snapshot()
+  })
+
+  handle(IPC.trialLockLayout, (): ProjectSnapshot => {
+    assertRole('trial')
+    const trial = dao.getTrial()
+    if (!trial) throw new Error('Generate a layout before locking it.')
+    if (trial.layoutLockedAt) throw new Error('The layout is already locked.')
+    dao.lockLayout()
+    recordAudit('trial.layout.lock', 'trial', 'Locked layout — randomization finalized')
+    return dao.snapshot()
+  })
+
+  handle(IPC.plotSetExcluded, (input: unknown): ProjectSnapshot => {
+    assertRole('trial')
+    assertLayoutLocked()
+    const { plotId, excluded, reason } = z
+      .object({ plotId: z.number().int(), excluded: z.boolean(), reason: z.string().default('') })
+      .parse(input)
+    const plot = dao.getPlot(plotId)
+    dao.setPlotExcluded(plotId, excluded, reason)
+    recordAudit(
+      excluded ? 'plot.exclude' : 'plot.include',
+      'plot',
+      excluded
+        ? `Excluded plot #${plot?.plotNumber ?? plotId} from analysis — ${reason || '(no reason given)'}`
+        : `Restored plot #${plot?.plotNumber ?? plotId} to analysis`,
+      { plotId, reason }
+    )
     return dao.snapshot()
   })
 
@@ -275,6 +312,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
 
   handle(IPC.assessmentValueSet, (v: unknown) => {
+    assertLayoutLocked()
     const val = AssessmentValue.parse(v)
     const newVal = val.value === null || Number.isNaN(val.value) ? null : val.value
     const old = dao.getAssessmentValue(val.assessmentHeaderId, val.plotId)
@@ -295,6 +333,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   // --- Statistics ---
   handle(IPC.statsRunAov, async (headerId: unknown, req: unknown) => {
+    assertLayoutLocked()
     const assessmentHeaderId = z.number().int().parse(headerId)
     const aovReq = AovRequest.parse(req)
     const result = await runAov(aovReq)

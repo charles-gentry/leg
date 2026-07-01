@@ -69,7 +69,7 @@ describe('trial + plots + assessments', () => {
     )
     const treatments = dao.listTreatments()
     dao.saveProtocol({ ...dao.getProtocol(), design: 'RCB', replicates: 2 })
-    const trial: Omit<Trial, 'id'> = {
+    const trial: Omit<Trial, 'id' | 'layoutLockedAt'> = {
       protocolId: 1,
       plotRows: 2,
       plotCols: 3,
@@ -245,5 +245,43 @@ describe('protocol → trial', () => {
       analyze: true
     })
     expect(() => assertHeaderEditable(siteId)).not.toThrow()
+  })
+})
+
+describe('layout lock + plot exclusion', () => {
+  function makeTrial(): number {
+    dao.replaceTreatments(
+      [1, 2].map((n) => ({ number: n, name: `T${n}`, product: '', rate: '', rateUnit: '', type: '' }))
+    )
+    const t = dao.listTreatments()
+    return dao.replaceTrialWithPlots({ protocolId: 1, plotRows: 1, plotCols: 2, seed: 1, ...SITE }, [
+      { plotNumber: 1, rep: 1, treatmentId: t[0].id!, mapRow: 0, mapCol: 0 },
+      { plotNumber: 2, rep: 1, treatmentId: t[1].id!, mapRow: 0, mapCol: 1 }
+    ])
+  }
+
+  it('a freshly generated layout is unlocked; lockLayout stamps it', () => {
+    makeTrial()
+    expect(dao.getTrial()!.layoutLockedAt).toBe('')
+    const ts = dao.lockLayout()
+    expect(ts).not.toBe('')
+    expect(dao.getTrial()!.layoutLockedAt).toBe(ts)
+  })
+
+  it('regenerating resets the layout to unlocked', () => {
+    makeTrial()
+    dao.lockLayout()
+    expect(dao.getTrial()!.layoutLockedAt).not.toBe('')
+    makeTrial() // replaceTrialWithPlots again
+    expect(dao.getTrial()!.layoutLockedAt).toBe('')
+  })
+
+  it('setPlotExcluded toggles the flag + reason and clears reason on include', () => {
+    makeTrial()
+    const p = dao.listPlots(dao.getTrial()!.id!)[0]
+    dao.setPlotExcluded(p.id!, true, 'wrong treatment applied')
+    expect(dao.getPlot(p.id!)).toMatchObject({ excluded: true, excludeReason: 'wrong treatment applied' })
+    dao.setPlotExcluded(p.id!, false, '')
+    expect(dao.getPlot(p.id!)).toMatchObject({ excluded: false, excludeReason: '' })
   })
 })

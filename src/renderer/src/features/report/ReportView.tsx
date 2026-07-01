@@ -95,6 +95,15 @@ export function ReportView(): JSX.Element {
     ? [trial.siteName, trial.location, trial.city, trial.state, trial.country].filter(Boolean).join(', ')
     : ''
 
+  const treatmentLabel = useMemo(() => {
+    const m = new Map(snapshot!.treatments.map((t) => [t.id!, t]))
+    return (id: number): string => {
+      const t = m.get(id)
+      return t ? `${t.number}. ${t.name || 'Trt ' + t.number}` : `#${id}`
+    }
+  }, [snapshot])
+  const excludedPlots = snapshot!.plots.filter((p) => p.excluded)
+
   return (
     <>
       <div className="card no-print">
@@ -194,6 +203,33 @@ export function ReportView(): JSX.Element {
             </tbody>
           </table>
         </div>
+
+        {excludedPlots.length > 0 && (
+          <div className="card">
+            <h2>Excluded Plots</h2>
+            <p className="muted">
+              These plots are omitted from all analysis below; their data is retained on record.
+            </p>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th style={{ width: 60 }}>Plot</th>
+                  <th>Treatment</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {excludedPlots.map((p) => (
+                  <tr key={p.id}>
+                    <td className="num">{p.plotNumber}</td>
+                    <td>{treatmentLabel(p.treatmentId)}</td>
+                    <td>{p.excludeReason || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {!rReady && (
           <div className="card no-print">
