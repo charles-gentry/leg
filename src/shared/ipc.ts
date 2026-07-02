@@ -14,6 +14,7 @@ export const IPC = {
 
   // Trial (created from a protocol)
   trialNewFromProtocol: 'trial:newFromProtocol',
+  trialNewFromCurrent: 'trial:newFromCurrentProtocol',
   trialOpen: 'trial:open',
   trialGenerate: 'trial:generate',
   trialLockLayout: 'trial:lockLayout',
@@ -31,6 +32,9 @@ export const IPC = {
 
   // Report
   reportExportPdf: 'report:exportPdf',
+
+  // Menu (native menu bar ↔ renderer)
+  menuSetState: 'menu:setState',
 
   // Audit
   auditList: 'audit:list',

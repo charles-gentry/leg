@@ -36,6 +36,8 @@ const api = {
   trial: {
     newFromProtocol: (): Promise<ProjectSnapshot | null> =>
       ipcRenderer.invoke(IPC.trialNewFromProtocol),
+    newFromCurrent: (): Promise<ProjectSnapshot | null> =>
+      ipcRenderer.invoke(IPC.trialNewFromCurrent),
     open: (): Promise<ProjectSnapshot | null> => ipcRenderer.invoke(IPC.trialOpen),
     generate: (cfg: Partial<SiteMetadata> & { seed?: number }): Promise<ProjectSnapshot> =>
       ipcRenderer.invoke(IPC.trialGenerate, cfg),
@@ -67,6 +69,17 @@ const api = {
   },
   audit: {
     list: (): Promise<AuditEntry[]> => ipcRenderer.invoke(IPC.auditList)
+  },
+  menu: {
+    /** Tell the native menu what's applicable for the current document. */
+    setState: (s: { role: 'protocol' | 'trial' | null; hasDocument: boolean }): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.menuSetState, s),
+    /** Subscribe to native-menu actions; returns an unsubscribe fn. */
+    onAction: (cb: (action: string) => void): (() => void) => {
+      const listener = (_e: unknown, action: string): void => cb(action)
+      ipcRenderer.on('menu', listener)
+      return () => ipcRenderer.removeListener('menu', listener)
+    }
   },
   env: {
     detectR: (): Promise<REnvStatus> => ipcRenderer.invoke(IPC.envDetectR),

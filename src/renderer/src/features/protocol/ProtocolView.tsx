@@ -3,8 +3,17 @@ import { useStore } from '../../store'
 import type { Protocol, Treatment, AssessmentDef, DesignType } from '@shared/types'
 
 export function ProtocolView(): JSX.Element {
-  const { snapshot, setSnapshot, run } = useStore()
+  const { snapshot, setSnapshot, setView, run } = useStore()
   const readOnly = snapshot!.role === 'trial'
+
+  const createTrial = (): void =>
+    void run('Creating trial', async () => {
+      const s = await window.arm.trial.newFromCurrent()
+      if (s) {
+        setSnapshot(s)
+        setView(s.trial ? 'trialmap' : 'site')
+      }
+    })
   const [protocol, setProtocol] = useState<Protocol>(snapshot!.protocol)
   const [treatments, setTreatments] = useState<Treatment[]>(snapshot!.treatments)
 
@@ -67,11 +76,24 @@ export function ProtocolView(): JSX.Element {
 
   return (
     <>
-      {readOnly && (
+      {readOnly ? (
         <div className="banner locked">
           🔒 Protocol locked — this file is a trial instance of protocol{' '}
           <code>{protocol.protocolUid.slice(0, 8) || '—'}</code> v{protocol.protocolVersion}. The
           treatments, design, and core assessments were set by the author and cannot be changed.
+        </div>
+      ) : (
+        <div className="card cta-row">
+          <div>
+            <strong>Ready to run this protocol?</strong>
+            <p className="muted" style={{ margin: '2px 0 0' }}>
+              Create a trial from it to generate a randomized layout and enter data — all in this
+              session.
+            </p>
+          </div>
+          <button className="primary" onClick={createTrial}>
+            Create Trial from this Protocol →
+          </button>
         </div>
       )}
 

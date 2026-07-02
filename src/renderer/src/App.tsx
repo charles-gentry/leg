@@ -107,20 +107,77 @@ function Welcome(): JSX.Element {
 }
 
 export default function App(): JSX.Element {
-  const { snapshot, view, setView, setSnapshot, setREnv, busy, error, setError, run } = useStore()
+  const { snapshot, view, setView, setSnapshot, setREnv, busy, error, setError, run, sidebarOpen, toggleSidebar } =
+    useStore()
+
+  // Pick a sensible starting view for a freshly opened/created document.
+  const applySnapshot = (s: ProjectSnapshot): void => {
+    setSnapshot(s)
+    setView(s.role === 'trial' ? (s.trial ? 'trialmap' : 'site') : 'protocol')
+  }
+
+  const doNewProtocol = (): void =>
+    void run('Creating protocol', async () => {
+      const s = await window.arm.protocol.new()
+      if (s) applySnapshot(s)
+    })
+  const doOpen = (): void =>
+    void run('Opening file', async () => {
+      // Try a trial first, then a protocol (dialogs filter by extension).
+      const s = (await window.arm.trial.open()) ?? (await window.arm.protocol.open())
+      if (s) applySnapshot(s)
+    })
+  const doOpenTrial = (): void =>
+    void run('Opening trial', async () => {
+      const s = await window.arm.trial.open()
+      if (s) applySnapshot(s)
+    })
+  const doNewFromProtocol = (): void =>
+    void run('Creating trial', async () => {
+      const s = await window.arm.trial.newFromProtocol()
+      if (s) applySnapshot(s)
+    })
+  const doNewFromCurrent = (): void =>
+    void run('Creating trial', async () => {
+      const s = await window.arm.trial.newFromCurrent()
+      if (s) applySnapshot(s)
+    })
+  const doClose = (): void =>
+    void run('Closing file', async () => {
+      await window.arm.project.close()
+      setSnapshot(null)
+    })
 
   useEffect(() => {
     window.arm.env.detectR().then(setREnv)
-    window.arm.project.snapshot().then((s) => s && setSnapshot(s))
-  }, [setREnv, setSnapshot])
+    window.arm.project.snapshot().then((s) => s && applySnapshot(s))
+    // React to native-menu actions.
+    return window.arm.menu.onAction((action) => {
+      switch (action) {
+        case 'protocol.new': doNewProtocol(); break
+        case 'file.open': doOpen(); break
+        case 'trial.open': doOpenTrial(); break
+        case 'trial.newFromProtocol': doNewFromProtocol(); break
+        case 'trial.newFromCurrent': doNewFromCurrent(); break
+        case 'file.close': doClose(); break
+        case 'sidebar.toggle': toggleSidebar(); break
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const role: Role = snapshot?.role ?? 'protocol'
   const hasTrial = !!snapshot?.trial
   const layoutLocked = !!snapshot?.trial?.layoutLockedAt
   const nav = NAV[role]
 
+  // Keep the native menu's applicability in sync with the open document.
+  useEffect(() => {
+    window.arm.menu.setState({ role: snapshot?.role ?? null, hasDocument: !!snapshot })
+  }, [snapshot])
+
   return (
-    <div className="app">
+    <div className={`app${sidebarOpen ? '' : ' sidebar-collapsed'}`}>
       {busy && <div className="busy-bar" title={busy} />}
       <header className="app-header">
         <h1>Open ARM</h1>
@@ -130,37 +187,22 @@ export default function App(): JSX.Element {
         {snapshot && <span className="file">{snapshot.filePath}</span>}
         <div className="spacer" />
         {busy && <span className="muted">{busy}…</span>}
-        {snapshot && (
-          <>
-            <button
-              onClick={() =>
-                run('Creating protocol', async () => {
-                  const s = await window.arm.protocol.new()
-                  if (s) {
-                    setSnapshot(s)
-                    setView('protocol')
-                  }
-                })
-              }
-            >
-              New Protocol
-            </button>
-            <button
-              onClick={() =>
-                run('Opening file', async () => {
-                  // Try a trial first, then a protocol (dialogs filter by extension).
-                  const s = (await window.arm.trial.open()) ?? (await window.arm.protocol.open())
-                  if (s) setSnapshot(s)
-                })
-              }
-            >
-              Open…
-            </button>
-          </>
+        {snapshot && role === 'protocol' && (
+          <button className="primary" onClick={doNewFromCurrent}>
+            Create Trial from this Protocol →
+          </button>
         )}
       </header>
 
       <nav className="sidebar">
+        <button
+          className="sidebar-toggle"
+          title={sidebarOpen ? 'Collapse sidebar (Ctrl+B)' : 'Expand sidebar (Ctrl+B)'}
+          aria-label="Toggle sidebar"
+          onClick={toggleSidebar}
+        >
+          {sidebarOpen ? '◀' : '▶'}
+        </button>
         {snapshot &&
           nav.map((n) => {
             const disabled = (n.needsTrial && !hasTrial) || (n.needsLock && !layoutLocked)

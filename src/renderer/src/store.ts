@@ -9,9 +9,12 @@ interface AppState {
   rEnv: REnvStatus | null
   busy: string | null // label of an in-flight operation, or null
   error: string | null
+  /** Whether the left navigation sidebar is shown. Persisted across sessions. */
+  sidebarOpen: boolean
   /** ANOVA results keyed by assessment header id, shared by Stats and Report. */
   aovResults: Record<number, AovResult>
 
+  toggleSidebar: () => void
   setView: (v: ViewId) => void
   setSnapshot: (s: ProjectSnapshot | null) => void
   setREnv: (s: REnvStatus | null) => void
@@ -28,8 +31,15 @@ export const useStore = create<AppState>((set) => ({
   rEnv: null,
   busy: null,
   error: null,
+  sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
   aovResults: {},
 
+  toggleSidebar: () =>
+    set((state) => {
+      const sidebarOpen = !state.sidebarOpen
+      localStorage.setItem('sidebarOpen', String(sidebarOpen))
+      return { sidebarOpen }
+    }),
   setView: (view) => set({ view }),
   setSnapshot: (snapshot) =>
     set((state) => {

@@ -1,7 +1,8 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, Menu } from 'electron'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { registerIpc } from './ipc/handlers.js'
+import { buildMenu } from './menu.js'
 import { closeProject } from './db/connection.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -16,7 +17,7 @@ function createWindow(): void {
     minHeight: 600,
     title: 'Open ARM',
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
@@ -44,6 +45,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   registerIpc(() => mainWindow)
   createWindow()
+  if (mainWindow) Menu.setApplicationMenu(buildMenu(mainWindow))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -16,6 +16,7 @@ import {
 } from '@shared/types.js'
 import { z } from 'zod'
 import { openProject, closeProject, getCurrentPath } from '../db/connection.js'
+import { setMenuEnabled } from '../menu.js'
 import * as dao from '../db/dao.js'
 import { recordAudit, listAudit } from '../db/audit.js'
 import {
@@ -155,6 +156,30 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       'trial',
       `Created trial from protocol ${p.protocolUid.slice(0, 8) || '—'} v${p.protocolVersion}`,
       { protocolUid: p.protocolUid, protocolVersion: p.protocolVersion }
+    )
+    return dao.snapshot()
+  })
+
+  // Create a trial from the protocol that is currently open — no need to re-pick the file.
+  handle(IPC.trialNewFromCurrent, async (): Promise<ProjectSnapshot | null> => {
+    assertRole('protocol')
+    const src = getCurrentPath()
+    if (!src) throw new Error('No protocol is open.')
+    const dstRes = await dialog.showSaveDialog(getWindow()!, {
+      title: 'Save New Trial',
+      defaultPath: 'trial.armtrial',
+      filters: [TRIAL_FILTER]
+    })
+    if (dstRes.canceled || !dstRes.filePath) return null
+    // Release the protocol's write handle (flushing WAL) before copying it read-only.
+    closeProject()
+    dao.createTrialFromProtocol(src, dstRes.filePath)
+    const p = dao.getProtocol()
+    recordAudit(
+      'trial.create',
+      'trial',
+      `Created trial from protocol ${p.protocolUid.slice(0, 8) || '—'} v${p.protocolVersion}`,
+      { protocolUid: p.protocolUid, protocolVersion: p.protocolVersion, from: 'current' }
     )
     return dao.snapshot()
   })
@@ -376,6 +401,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     await writeFile(res.filePath, data)
     shell.openPath(res.filePath)
     return res.filePath
+  })
+
+  // --- Menu state (renderer tells the native menu what's applicable) ---
+  handle(IPC.menuSetState, (input: unknown) => {
+    const { role } = z
+      .object({ role: z.enum(['protocol', 'trial']).nullable(), hasDocument: z.boolean() })
+      .parse(input)
+    setMenuEnabled('trial-from-current', role === 'protocol')
+    return true
   })
 
   // --- Audit ---

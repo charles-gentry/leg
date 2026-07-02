@@ -37,6 +37,17 @@ body {
     'header header'
     'sidebar main';
   height: 100vh;
+  transition: grid-template-columns 0.18s ease;
+}
+.app.sidebar-collapsed {
+  grid-template-columns: 42px 1fr;
+}
+.app.sidebar-collapsed .sidebar {
+  padding: 8px 6px;
+}
+/* Collapsed rail shows only the toggle arrow. */
+.app.sidebar-collapsed .nav-item {
+  display: none;
 }
 
 .app-header {
@@ -69,6 +80,35 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden; /* clip contents while the column collapses to 0 */
+  white-space: nowrap;
+}
+/* Collapse/expand arrow, docked at the top of the sliding sidebar. */
+.sidebar-toggle {
+  align-self: flex-end; /* sits at the sidebar's inner edge when expanded */
+  margin-bottom: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+}
+.sidebar-toggle:hover {
+  background: #eef0f3;
+  color: var(--text);
+}
+.app.sidebar-collapsed .sidebar-toggle {
+  align-self: center;
+  padding: 3px 6px;
+}
+.cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 .nav-item {
   text-align: left;
