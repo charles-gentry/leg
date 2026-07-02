@@ -94,18 +94,24 @@ export function StatsView(): JSX.Element {
         )}
       </div>
 
-      {result && (
-        <>
-          <div className="card">
-            <h2>Analysis of Variance</h2>
-            <AnovaTable result={result} />
-          </div>
+      {result?.note ? (
+        <div className="card">
+          <div className="banner">{result.note}</div>
+        </div>
+      ) : (
+        result && (
+          <>
+            <div className="card">
+              <h2>Analysis of Variance</h2>
+              <AnovaTable result={result} />
+            </div>
 
-          <div className="card">
-            <h2>Treatment Means</h2>
-            <MeansTable result={result} treatments={snapshot!.treatments} />
-          </div>
-        </>
+            <div className="card">
+              <h2>Treatment Means</h2>
+              <MeansTable result={result} treatments={snapshot!.treatments} />
+            </div>
+          </>
+        )
       )}
     </>
   )

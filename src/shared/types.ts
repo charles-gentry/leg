@@ -206,6 +206,12 @@ export interface AovResult {
   test: MeanComparisonTest
   alpha: AlphaLevel
   significant: boolean // treatment effect significant at alpha
+  /**
+   * Set when the dataset is too degenerate for a full analysis (e.g. no residual
+   * degrees of freedom / unbalanced data). When present, `means` is empty and the
+   * numeric summaries should not be shown — display this note instead.
+   */
+  note?: string
 }
 
 // ---------------------------------------------------------------------------

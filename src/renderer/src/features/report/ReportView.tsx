@@ -46,13 +46,30 @@ export function ReportView(): JSX.Element {
     if (eligible.length === 0) return
     run('Analyzing all assessments', async () => {
       for (const h of eligible) {
-        const result = await window.arm.stats.runAov(h.id!, {
-          design: protocol.design,
-          test,
-          alpha,
-          data: obsByHeader.get(h.id!)!
-        })
-        setAov(h.id!, result)
+        try {
+          const result = await window.arm.stats.runAov(h.id!, {
+            design: protocol.design,
+            test,
+            alpha,
+            data: obsByHeader.get(h.id!)!
+          })
+          setAov(h.id!, result)
+        } catch (e) {
+          // Don't let one problematic assessment abort the whole report.
+          setAov(h.id!, {
+            anova: [],
+            means: [],
+            grandMean: 0,
+            cv: 0,
+            lsd: null,
+            criticalValueLabel: '',
+            stdError: 0,
+            test,
+            alpha,
+            significant: false,
+            note: `Analysis failed: ${(e as Error).message}`
+          })
+        }
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -266,7 +283,7 @@ export function ReportView(): JSX.Element {
                       )}
                     </td>
                     <td className="num">{n}</td>
-                    {result ? (
+                    {result && !result.note ? (
                       <>
                         <td className="num">{result.grandMean.toFixed(3)}</td>
                         <td className="num">{result.cv.toFixed(2)}</td>
@@ -280,7 +297,7 @@ export function ReportView(): JSX.Element {
                       </>
                     ) : (
                       <td className="muted" colSpan={5}>
-                        {n < MIN_OBS ? 'insufficient data' : rReady ? 'analyzing…' : 'R not ready'}
+                        {result?.note ?? (n < MIN_OBS ? 'insufficient data' : rReady ? 'analyzing…' : 'R not ready')}
                       </td>
                     )}
                   </tr>
@@ -304,10 +321,16 @@ export function ReportView(): JSX.Element {
                   Each plot value is the mean of {h.subsamples} subsamples.
                 </p>
               )}
-              <h3 style={{ margin: '4px 0' }}>Analysis of Variance</h3>
-              <AnovaTable result={result} />
-              <h3 style={{ margin: '16px 0 4px' }}>Treatment Means ({result.criticalValueLabel})</h3>
-              <MeansTable result={result} treatments={snapshot!.treatments} />
+              {result.note ? (
+                <div className="banner">{result.note}</div>
+              ) : (
+                <>
+                  <h3 style={{ margin: '4px 0' }}>Analysis of Variance</h3>
+                  <AnovaTable result={result} />
+                  <h3 style={{ margin: '16px 0 4px' }}>Treatment Means ({result.criticalValueLabel})</h3>
+                  <MeansTable result={result} treatments={snapshot!.treatments} />
+                </>
+              )}
             </div>
           ) : null
         )}
