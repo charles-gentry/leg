@@ -182,11 +182,13 @@ export function ProtocolView(): JSX.Element {
         </div>
         {protocol.design === 'ALPHA' && (
           <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-            The treatment count must be divisible by the block size (k), and k must be smaller than
-            the treatment count. Each replicate is split into {treatments.length && protocol.blockSize
+            The treatment count must be divisible by the block size (k), with at least k blocks per
+            replicate (so k must be no larger than √treatments). Each replicate is split into{' '}
+            {treatments.length && protocol.blockSize
               ? Math.max(1, Math.floor(treatments.length / protocol.blockSize))
               : 'n'}{' '}
-            incomplete blocks of {protocol.blockSize} plots.
+            incomplete blocks of {protocol.blockSize} plots. Some block/replicate combinations have
+            no alpha design — 2 replicates work for most.
           </p>
         )}
       </div>

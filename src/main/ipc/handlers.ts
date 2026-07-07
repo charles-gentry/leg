@@ -216,6 +216,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       if (treatments.length % k !== 0) {
         throw new Error(`Block size (${k}) must evenly divide the treatment count (${treatments.length}) for an alpha design.`)
       }
+      // Resolvable alpha designs also need at least k blocks per replicate (s = t/k >= k),
+      // i.e. k <= sqrt(t); otherwise agricolae has no generator for the layout.
+      if (treatments.length / k < k) {
+        throw new Error(`Block size (${k}) is too large: an alpha design needs at least ${k} blocks per replicate, so k must be at most √${treatments.length} ≈ ${Math.floor(Math.sqrt(treatments.length))}.`)
+      }
     }
 
     const seed = cfg.seed ?? Math.floor(Math.random() * 1_000_000)
