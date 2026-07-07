@@ -460,6 +460,27 @@ export function saveAnalysisResult(
  * The source is read via a *separate* readonly handle; only after it is closed do we
  * call openProject(destPath), which replaces the process-global current handle.
  */
+/** Read a protocol file's design parameters (readonly) without opening it as the current project. */
+export function readDesignInfo(sourcePath: string): {
+  design: Protocol['design']
+  replicates: number
+  blockSize: number
+  treatmentCount: number
+} {
+  const src = new Database(sourcePath, { readonly: true })
+  try {
+    const p = getProtocol(src)
+    return {
+      design: p.design,
+      replicates: p.replicates,
+      blockSize: p.blockSize,
+      treatmentCount: listTreatments(src).length
+    }
+  } finally {
+    src.close()
+  }
+}
+
 export function createTrialFromProtocol(sourcePath: string, destPath: string): void {
   const src = new Database(sourcePath, { readonly: true })
   let protocol: Protocol

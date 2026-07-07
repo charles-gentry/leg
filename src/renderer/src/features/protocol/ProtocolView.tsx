@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../../store'
+import { validateDesign } from '@shared/design'
 import type { Protocol, Treatment, AssessmentDef, DesignType } from '@shared/types'
 
 export function ProtocolView(): JSX.Element {
@@ -22,6 +23,14 @@ export function ProtocolView(): JSX.Element {
     setProtocol(snapshot!.protocol)
     setTreatments(snapshot!.treatments)
   }, [snapshot!.filePath])
+
+  // Live conformance check so a non-conformant design is caught here, not downstream.
+  const designValidation = validateDesign(
+    protocol.design,
+    protocol.replicates,
+    protocol.blockSize,
+    treatments.length
+  )
 
   const saveProtocol = (next: Protocol = protocol): void => {
     if (readOnly) return
@@ -91,7 +100,12 @@ export function ProtocolView(): JSX.Element {
               session.
             </p>
           </div>
-          <button className="primary" onClick={createTrial}>
+          <button
+            className="primary"
+            onClick={createTrial}
+            disabled={!designValidation.ok}
+            title={designValidation.ok ? undefined : designValidation.error}
+          >
             Create Trial from this Protocol →
           </button>
         </div>
@@ -151,7 +165,7 @@ export function ProtocolView(): JSX.Element {
               <label>Block size (k)</label>
               <input
                 type="number"
-                min={2}
+                min={3}
                 disabled={readOnly}
                 value={protocol.blockSize}
                 onChange={(e) => setProtocol({ ...protocol, blockSize: Number(e.target.value) })}
@@ -180,17 +194,26 @@ export function ProtocolView(): JSX.Element {
             />
           </div>
         </div>
-        {protocol.design === 'ALPHA' && (
-          <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-            The treatment count must be divisible by the block size (k), with at least k blocks per
-            replicate (so k must be no larger than √treatments). Each replicate is split into{' '}
-            {treatments.length && protocol.blockSize
-              ? Math.max(1, Math.floor(treatments.length / protocol.blockSize))
-              : 'n'}{' '}
-            incomplete blocks of {protocol.blockSize} plots. Some block/replicate combinations have
-            no alpha design — 2 replicates work for most.
-          </p>
-        )}
+        {protocol.design === 'ALPHA' &&
+          (designValidation.ok ? (
+            <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+              Each replicate is split into {Math.floor(treatments.length / protocol.blockSize)}{' '}
+              incomplete blocks of {protocol.blockSize} plots.
+              {designValidation.validReplicates &&
+                ` Supported replicate counts for this layout: ${designValidation.validReplicates.join(', ')}.`}
+            </p>
+          ) : (
+            <p
+              style={{
+                marginTop: 8,
+                marginBottom: 0,
+                color: 'var(--danger)',
+                fontWeight: 500
+              }}
+            >
+              ⚠ {designValidation.error} A trial cannot be created until this is resolved.
+            </p>
+          ))}
       </div>
 
       <div className="card">

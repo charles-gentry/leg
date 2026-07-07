@@ -9,6 +9,7 @@ import { StatsView } from './features/stats/StatsView'
 import { ReportView } from './features/report/ReportView'
 import { AuditView } from './features/audit/AuditView'
 import { REnvBanner } from './components/REnvBanner'
+import { validateDesign } from '@shared/design'
 import type { Role, ProjectSnapshot } from '@shared/types'
 
 type OpenFn = () => Promise<ProjectSnapshot | null>
@@ -172,6 +173,14 @@ export default function App(): JSX.Element {
   const hasTrial = !!snapshot?.trial
   const layoutLocked = !!snapshot?.trial?.layoutLockedAt
   const nav = NAV[role]
+  const protocolDesignOk = snapshot
+    ? validateDesign(
+        snapshot.protocol.design,
+        snapshot.protocol.replicates,
+        snapshot.protocol.blockSize,
+        snapshot.treatments.length
+      ).ok
+    : true
 
   // Keep the native menu's applicability in sync with the open document.
   useEffect(() => {
@@ -190,7 +199,12 @@ export default function App(): JSX.Element {
         <div className="spacer" />
         {busy && <span className="muted">{busy}…</span>}
         {snapshot && role === 'protocol' && (
-          <button className="primary" onClick={doNewFromCurrent}>
+          <button
+            className="primary"
+            onClick={doNewFromCurrent}
+            disabled={!protocolDesignOk}
+            title={protocolDesignOk ? undefined : 'The protocol design is non-conformant — see the Protocol tab.'}
+          >
             Create Trial from this Protocol →
           </button>
         )}

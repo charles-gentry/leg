@@ -15,6 +15,7 @@ import {
   type Plot
 } from '@shared/types.js'
 import { z } from 'zod'
+import { validateDesign } from '@shared/design.js'
 import { openProject, closeProject, getCurrentPath } from '../db/connection.js'
 import { setMenuEnabled } from '../menu.js'
 import * as dao from '../db/dao.js'
@@ -143,6 +144,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       filters: [PROTO_FILTER]
     })
     if (srcRes.canceled || srcRes.filePaths.length === 0) return null
+    // Refuse a non-conformant protocol before creating a trial the operator can't randomize.
+    const info = dao.readDesignInfo(srcRes.filePaths[0])
+    const v = validateDesign(info.design, info.replicates, info.blockSize, info.treatmentCount)
+    if (!v.ok) throw new Error(`This protocol's design cannot be randomized: ${v.error}`)
     const dstRes = await dialog.showSaveDialog(win, {
       title: 'Save New Trial',
       defaultPath: 'trial.arttrial',
@@ -165,6 +170,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     assertRole('protocol')
     const src = getCurrentPath()
     if (!src) throw new Error('No protocol is open.')
+    // Block creating a trial from a non-conformant design (caught at authoring, not by the operator).
+    const proto = dao.getProtocol()
+    const v = validateDesign(proto.design, proto.replicates, proto.blockSize, dao.listTreatments().length)
+    if (!v.ok) throw new Error(v.error)
     const dstRes = await dialog.showSaveDialog(getWindow()!, {
       title: 'Save New Trial',
       defaultPath: 'trial.arttrial',
@@ -203,25 +212,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const protocol = dao.getProtocol()
     const replaced = !!dao.getTrial()
     const treatments = dao.listTreatments()
-    if (treatments.length < 2) throw new Error('Add at least 2 treatments before generating a trial.')
-
-    // The ALPHA (incomplete block) design needs a block size that evenly divides the
-    // treatment count and is strictly smaller than it; validate before calling R for a
-    // clear message rather than agricolae's terse error.
-    if (protocol.design === 'ALPHA') {
-      const k = protocol.blockSize
-      if (!(k >= 2 && k < treatments.length)) {
-        throw new Error(`Block size (${k}) must be at least 2 and smaller than the treatment count (${treatments.length}).`)
-      }
-      if (treatments.length % k !== 0) {
-        throw new Error(`Block size (${k}) must evenly divide the treatment count (${treatments.length}) for an alpha design.`)
-      }
-      // Resolvable alpha designs also need at least k blocks per replicate (s = t/k >= k),
-      // i.e. k <= sqrt(t); otherwise agricolae has no generator for the layout.
-      if (treatments.length / k < k) {
-        throw new Error(`Block size (${k}) is too large: an alpha design needs at least ${k} blocks per replicate, so k must be at most √${treatments.length} ≈ ${Math.floor(Math.sqrt(treatments.length))}.`)
-      }
-    }
+    // Final backstop for design conformance (the same check runs at authoring + trial creation).
+    const conformance = validateDesign(
+      protocol.design,
+      protocol.replicates,
+      protocol.blockSize,
+      treatments.length
+    )
+    if (!conformance.ok) throw new Error(conformance.error)
 
     const seed = cfg.seed ?? Math.floor(Math.random() * 1_000_000)
     const randomized = await randomize({
