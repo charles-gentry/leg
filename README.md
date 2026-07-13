@@ -113,13 +113,11 @@ accumulating personal library lives outside the project, in the app's user-data 
 
 ## Roadmap
 
-Planned additions, building on the extensible schema and R sidecar:
-
-- **More designs** — factorial and split-plot layouts, extending the existing design engine.
-- **Summary-across-trials** — combined multi-trial analysis and reporting.
-- **Field data collector** — a tablet-friendly mode for in-field assessment entry.
-- **Trial-format import/export** — read and write third-party trial file formats.
-- **Cloud sync** — share and back up projects across devices.
+See [ROADMAP.md](ROADMAP.md) for the full ARM-vs-ART gap analysis and prioritized plan. The v1.0 MVP
+focuses on two themes — richer **metadata capture** (applications, assessments, site details) and
+**printing** the labels and documents needed in the field — with product-rate calculations, data
+transformations, multi-trial summaries, and a tablet collector in later tiers. Feature choices are
+governed by the consumer test in [docs/DESIGN-PRINCIPLES.md](docs/DESIGN-PRINCIPLES.md).
 
 ## License
 

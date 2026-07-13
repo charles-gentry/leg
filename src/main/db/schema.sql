@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS library_term (
   UNIQUE (category, value)
 );
 
+-- A treatment is the comparison unit; its product/rate/timing content lives in treatment_application
+-- (the program). product/rate/rate_unit columns are legacy (pre-program model) and left for
+-- back-compat but no longer read/written.
 CREATE TABLE IF NOT EXISTS treatment (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   number    INTEGER NOT NULL,
@@ -54,12 +57,37 @@ CREATE TABLE IF NOT EXISTS treatment (
   UNIQUE (number)
 );
 
+-- One line of a treatment's program: a product + rate applied at an application timing (A/B/C, or
+-- '' for unscheduled). A treatment can have several — the sequence that defines the program.
+CREATE TABLE IF NOT EXISTS treatment_application (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  treatment_id    INTEGER NOT NULL REFERENCES treatment(id) ON DELETE CASCADE,
+  ordinal         INTEGER NOT NULL DEFAULT 0,
+  application_ref TEXT NOT NULL DEFAULT '', -- application timing code (matches application), '' = unscheduled
+  product         TEXT NOT NULL DEFAULT '',
+  rate            TEXT NOT NULL DEFAULT '',
+  rate_unit       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_trtappl_treatment ON treatment_application(treatment_id);
+
+-- Protocol-defined applications (the *plan*): ordered A/B/C… events, each a timing code + intended
+-- crop growth stage. Assessments anchor their timing to these (assessment_def.application_ref). The
+-- actual date each happened is trial-side (application_actual) — one protocol serves many sites.
 CREATE TABLE IF NOT EXISTS application (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ordinal      INTEGER NOT NULL DEFAULT 0,
   timing_code  TEXT NOT NULL DEFAULT '',
   description  TEXT NOT NULL DEFAULT '',
-  planned_date TEXT NOT NULL DEFAULT '',
-  growth_stage TEXT NOT NULL DEFAULT ''
+  planned_date TEXT NOT NULL DEFAULT '',  -- deprecated (actual date is trial-side); kept for back-compat
+  growth_stage TEXT NOT NULL DEFAULT ''   -- intended (target) crop growth stage at this application
+);
+
+-- Trial-side record of when each application actually happened, keyed by the plan's timing code.
+CREATE TABLE IF NOT EXISTS application_actual (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  timing_code TEXT NOT NULL DEFAULT '',
+  actual_date TEXT NOT NULL DEFAULT '',
+  UNIQUE (timing_code)
 );
 
 -- Core assessment definitions authored in the protocol. In a trial file these are
@@ -70,7 +98,9 @@ CREATE TABLE IF NOT EXISTS assessment_def (
   part_rated  TEXT NOT NULL DEFAULT '',
   rating_type TEXT NOT NULL DEFAULT '',
   rating_unit TEXT NOT NULL DEFAULT '',
-  timing      TEXT NOT NULL DEFAULT '',
+  application_ref TEXT NOT NULL DEFAULT '', -- anchored application's timing code ('' = unanchored)
+  days_after  INTEGER,                      -- offset from the anchored application (NULL = unanchored)
+  timing      TEXT NOT NULL DEFAULT '',     -- free-text timing override (wins over the derived label)
   rating_date TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   ordinal     INTEGER NOT NULL DEFAULT 0,
@@ -121,7 +151,9 @@ CREATE TABLE IF NOT EXISTS assessment_header (
   part_rated  TEXT NOT NULL DEFAULT '',
   rating_type TEXT NOT NULL DEFAULT '',
   rating_unit TEXT NOT NULL DEFAULT '',
-  timing      TEXT NOT NULL DEFAULT '',
+  application_ref TEXT NOT NULL DEFAULT '', -- anchored application's timing code ('' = unanchored)
+  days_after  INTEGER,                      -- offset from the anchored application (NULL = unanchored)
+  timing      TEXT NOT NULL DEFAULT '',     -- free-text timing override (wins over the derived label)
   rating_date TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   ordinal     INTEGER NOT NULL DEFAULT 0,

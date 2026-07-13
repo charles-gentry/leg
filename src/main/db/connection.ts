@@ -3,7 +3,7 @@ import Database from 'better-sqlite3'
 import type { Role } from '@shared/types.js'
 import schemaSql from './schema.sql?raw'
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 /**
  * Add a column to an existing table if it isn't already present. `CREATE TABLE IF NOT EXISTS`
@@ -34,8 +34,17 @@ function migrate(db: Database.Database): void {
     | undefined
   const from = row ? Number(row.value) : 0
   if (from >= SCHEMA_VERSION) return
-  // Example for the future:
-  //   if (from < 4) ensureColumn(db, 'protocol', 'new_field', "new_field TEXT NOT NULL DEFAULT ''")
+  // v4: applications became the protocol timing plan (add ordinal); a treatment is a *program* of
+  // application lines (new treatment_application table); assessments anchor their timing to an
+  // application. New tables (treatment_application, application_actual) come from schema.sql's
+  // CREATE TABLE IF NOT EXISTS; only pre-existing tables need column ALTERs here.
+  if (from < 4) {
+    ensureColumn(db, 'application', 'ordinal', 'ordinal INTEGER NOT NULL DEFAULT 0')
+    for (const t of ['assessment_def', 'assessment_header']) {
+      ensureColumn(db, t, 'application_ref', "application_ref TEXT NOT NULL DEFAULT ''")
+      ensureColumn(db, t, 'days_after', 'days_after INTEGER')
+    }
+  }
   db.prepare(
     `INSERT INTO meta (key, value) VALUES ('schema_version', ?)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value`

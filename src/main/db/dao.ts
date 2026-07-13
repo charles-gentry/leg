@@ -4,6 +4,7 @@ import type {
   Protocol,
   Treatment,
   Application,
+  ApplicationActual,
   AssessmentDef,
   Trial,
   Plot,
@@ -91,34 +92,57 @@ export function listTreatments(db: Database.Database = getDb()): Treatment[] {
   const rows = db
     .prepare(`SELECT * FROM treatment ORDER BY number`)
     .all() as Record<string, unknown>[]
+  const lineRows = db
+    .prepare(`SELECT * FROM treatment_application ORDER BY treatment_id, ordinal, id`)
+    .all() as Record<string, unknown>[]
+  const linesByTrt = new Map<number, Treatment['applications']>()
+  for (const l of lineRows) {
+    const tid = l.treatment_id as number
+    const arr = linesByTrt.get(tid) ?? []
+    arr.push({
+      id: l.id as number,
+      ordinal: (l.ordinal as number) ?? 0,
+      applicationRef: (l.application_ref as string) ?? '',
+      product: l.product as string,
+      rate: l.rate as string,
+      rateUnit: l.rate_unit as string
+    })
+    linesByTrt.set(tid, arr)
+  }
   return rows.map((r) => ({
     id: r.id as number,
     number: r.number as number,
     name: r.name as string,
-    product: r.product as string,
-    rate: r.rate as string,
-    rateUnit: r.rate_unit as string,
-    type: r.type as string
+    type: r.type as string,
+    applications: linesByTrt.get(r.id as number) ?? []
   }))
 }
 
-/** Replace the entire treatment list in one transaction (simplest to keep in sync with UI). */
+/**
+ * Replace the entire treatment list (with each treatment's program of application lines) in one
+ * transaction. Treatments are re-inserted (new ids); their lines are written under the new ids.
+ */
 export function replaceTreatments(treatments: Treatment[], db: Database.Database = getDb()): void {
   const tx = db.transaction((items: Treatment[]) => {
-    db.prepare('DELETE FROM treatment').run()
-    const ins = db.prepare(
-      `INSERT INTO treatment (number, name, product, rate, rate_unit, type)
-       VALUES (@number, @name, @product, @rate, @rateUnit, @type)`
+    db.prepare('DELETE FROM treatment').run() // cascades to treatment_application
+    const insT = db.prepare(`INSERT INTO treatment (number, name, type) VALUES (@number, @name, @type)`)
+    const insL = db.prepare(
+      `INSERT INTO treatment_application (treatment_id, ordinal, application_ref, product, rate, rate_unit)
+       VALUES (@treatmentId, @ordinal, @applicationRef, @product, @rate, @rateUnit)`
     )
     for (const t of items) {
-      ins.run({
-        number: t.number,
-        name: t.name,
-        product: t.product,
-        rate: t.rate,
-        rateUnit: t.rateUnit,
-        type: t.type
-      })
+      const info = insT.run({ number: t.number, name: t.name, type: t.type })
+      const treatmentId = info.lastInsertRowid as number
+      ;(t.applications ?? []).forEach((l, i) =>
+        insL.run({
+          treatmentId,
+          ordinal: l.ordinal ?? i,
+          applicationRef: l.applicationRef ?? '',
+          product: l.product ?? '',
+          rate: l.rate ?? '',
+          rateUnit: l.rateUnit ?? ''
+        })
+      )
     }
   })
   tx(treatments)
@@ -126,13 +150,15 @@ export function replaceTreatments(treatments: Treatment[], db: Database.Database
 
 // --- Applications -----------------------------------------------------------
 export function listApplications(db: Database.Database = getDb()): Application[] {
-  const rows = db.prepare(`SELECT * FROM application ORDER BY id`).all() as Record<string, unknown>[]
+  const rows = db
+    .prepare(`SELECT * FROM application ORDER BY ordinal, id`)
+    .all() as Record<string, unknown>[]
   return rows.map((r) => ({
     id: r.id as number,
+    ordinal: (r.ordinal as number) ?? 0,
     timingCode: r.timing_code as string,
-    description: r.description as string,
-    plannedDate: r.planned_date as string,
-    growthStage: r.growth_stage as string
+    targetGrowthStage: r.growth_stage as string,
+    description: r.description as string
   }))
 }
 
@@ -140,12 +166,38 @@ export function replaceApplications(apps: Application[], db: Database.Database =
   const tx = db.transaction((items: Application[]) => {
     db.prepare('DELETE FROM application').run()
     const ins = db.prepare(
-      `INSERT INTO application (timing_code, description, planned_date, growth_stage)
-       VALUES (@timingCode, @description, @plannedDate, @growthStage)`
+      `INSERT INTO application (ordinal, timing_code, growth_stage, description)
+       VALUES (@ordinal, @timingCode, @targetGrowthStage, @description)`
     )
-    for (const a of items) ins.run(a)
+    items.forEach((a, i) => ins.run({ ...a, ordinal: a.ordinal ?? i }))
   })
   tx(apps)
+}
+
+// --- Application actuals (trial-owned) --------------------------------------
+export function listApplicationActuals(db: Database.Database = getDb()): ApplicationActual[] {
+  const rows = db
+    .prepare(`SELECT * FROM application_actual ORDER BY timing_code`)
+    .all() as Record<string, unknown>[]
+  return rows.map((r) => ({
+    id: r.id as number,
+    timingCode: r.timing_code as string,
+    actualDate: r.actual_date as string
+  }))
+}
+
+export function replaceApplicationActuals(
+  actuals: ApplicationActual[],
+  db: Database.Database = getDb()
+): void {
+  const tx = db.transaction((items: ApplicationActual[]) => {
+    db.prepare('DELETE FROM application_actual').run()
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO application_actual (timing_code, actual_date) VALUES (@timingCode, @actualDate)`
+    )
+    for (const a of items) if (a.timingCode) ins.run(a)
+  })
+  tx(actuals)
 }
 
 // --- Assessment definitions (protocol-owned) --------------------------------
@@ -158,6 +210,8 @@ export function listAssessmentDefs(db: Database.Database = getDb()): AssessmentD
     partRated: r.part_rated as string,
     ratingType: r.rating_type as string,
     ratingUnit: r.rating_unit as string,
+    applicationRef: (r.application_ref as string) ?? '',
+    daysAfter: (r.days_after as number | null) ?? null,
     timing: r.timing as string,
     ratingDate: r.rating_date as string,
     description: r.description as string,
@@ -171,12 +225,14 @@ export function replaceAssessmentDefs(defs: AssessmentDef[], db: Database.Databa
   const tx = db.transaction((items: AssessmentDef[]) => {
     db.prepare('DELETE FROM assessment_def').run()
     const ins = db.prepare(
-      `INSERT INTO assessment_def (part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal, analyze, subsamples)
-       VALUES (@partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal, @analyze, @subsamples)`
+      `INSERT INTO assessment_def (part_rated, rating_type, rating_unit, application_ref, days_after, timing, rating_date, description, ordinal, analyze, subsamples)
+       VALUES (@partRated, @ratingType, @ratingUnit, @applicationRef, @daysAfter, @timing, @ratingDate, @description, @ordinal, @analyze, @subsamples)`
     )
     items.forEach((d, i) =>
       ins.run({
         ...d,
+        applicationRef: d.applicationRef ?? '',
+        daysAfter: d.daysAfter ?? null,
         ordinal: d.ordinal ?? i,
         analyze: d.analyze === false ? 0 : 1,
         subsamples: d.subsamples ?? 1
@@ -378,12 +434,18 @@ export function listAssessmentHeaders(
   const rows = db
     .prepare(`SELECT * FROM assessment_header WHERE trial_id = ? ORDER BY ordinal, id`)
     .all(trialId) as Record<string, unknown>[]
-  return rows.map((r) => ({
+  return rows.map(mapHeaderRow)
+}
+
+function mapHeaderRow(r: Record<string, unknown>): AssessmentHeader {
+  return {
     id: r.id as number,
     trialId: r.trial_id as number,
     partRated: r.part_rated as string,
     ratingType: r.rating_type as string,
     ratingUnit: r.rating_unit as string,
+    applicationRef: (r.application_ref as string) ?? '',
+    daysAfter: (r.days_after as number | null) ?? null,
     timing: r.timing as string,
     ratingDate: r.rating_date as string,
     description: r.description as string,
@@ -392,29 +454,36 @@ export function listAssessmentHeaders(
     locked: !!(r.locked as number),
     analyze: !!(r.analyze as number),
     subsamples: (r.subsamples as number) ?? 1
-  }))
+  }
 }
 
 export function upsertAssessmentHeader(
   h: AssessmentHeader,
   db: Database.Database = getDb()
 ): number {
-  const flags = { locked: h.locked ? 1 : 0, analyze: h.analyze === false ? 0 : 1, subsamples: h.subsamples ?? 1 }
+  const extra = {
+    locked: h.locked ? 1 : 0,
+    analyze: h.analyze === false ? 0 : 1,
+    subsamples: h.subsamples ?? 1,
+    applicationRef: h.applicationRef ?? '',
+    daysAfter: h.daysAfter ?? null
+  }
   if (h.id) {
     db.prepare(
       `UPDATE assessment_header SET part_rated=@partRated, rating_type=@ratingType,
-        rating_unit=@ratingUnit, timing=@timing, rating_date=@ratingDate,
+        rating_unit=@ratingUnit, application_ref=@applicationRef, days_after=@daysAfter,
+        timing=@timing, rating_date=@ratingDate,
         description=@description, ordinal=@ordinal, origin=@origin, locked=@locked, analyze=@analyze,
         subsamples=@subsamples WHERE id=@id`
-    ).run({ ...h, ...flags })
+    ).run({ ...h, ...extra })
     return h.id
   }
   const info = db
     .prepare(
-      `INSERT INTO assessment_header (trial_id, part_rated, rating_type, rating_unit, timing, rating_date, description, ordinal, origin, locked, analyze, subsamples)
-       VALUES (@trialId, @partRated, @ratingType, @ratingUnit, @timing, @ratingDate, @description, @ordinal, @origin, @locked, @analyze, @subsamples)`
+      `INSERT INTO assessment_header (trial_id, part_rated, rating_type, rating_unit, application_ref, days_after, timing, rating_date, description, ordinal, origin, locked, analyze, subsamples)
+       VALUES (@trialId, @partRated, @ratingType, @ratingUnit, @applicationRef, @daysAfter, @timing, @ratingDate, @description, @ordinal, @origin, @locked, @analyze, @subsamples)`
     )
-    .run({ ...h, origin: h.origin ?? 'site', ...flags })
+    .run({ ...h, origin: h.origin ?? 'site', ...extra })
   return info.lastInsertRowid as number
 }
 
@@ -426,22 +495,7 @@ export function getAssessmentHeader(
   const r = db.prepare(`SELECT * FROM assessment_header WHERE id = ?`).get(id) as
     | Record<string, unknown>
     | undefined
-  if (!r) return null
-  return {
-    id: r.id as number,
-    trialId: r.trial_id as number,
-    partRated: r.part_rated as string,
-    ratingType: r.rating_type as string,
-    ratingUnit: r.rating_unit as string,
-    timing: r.timing as string,
-    ratingDate: r.rating_date as string,
-    description: r.description as string,
-    ordinal: r.ordinal as number,
-    origin: r.origin as AssessmentHeader['origin'],
-    locked: !!(r.locked as number),
-    analyze: !!(r.analyze as number),
-    subsamples: (r.subsamples as number) ?? 1
-  }
+  return r ? mapHeaderRow(r) : null
 }
 
 export function deleteAssessmentHeader(id: number, db: Database.Database = getDb()): void {
@@ -581,6 +635,8 @@ export function materializeCoreHeaders(trialId: number, db: Database.Database = 
         partRated: d.partRated,
         ratingType: d.ratingType,
         ratingUnit: d.ratingUnit,
+        applicationRef: d.applicationRef,
+        daysAfter: d.daysAfter,
         timing: d.timing,
         ratingDate: d.ratingDate,
         description: d.description,
@@ -647,6 +703,7 @@ export function snapshot(db: Database.Database = getDb()): ProjectSnapshot {
     plots: trial ? listPlots(trial.id!, db) : [],
     assessmentHeaders: trial ? listAssessmentHeaders(trial.id!, db) : [],
     assessmentValues: trial ? listAssessmentValues(trial.id!, db) : [],
+    applicationActuals: listApplicationActuals(db),
     libraryTerms: listLibraryTerms(db)
   }
 }

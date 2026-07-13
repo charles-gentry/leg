@@ -28,7 +28,9 @@ describe('library snapshot + travel', () => {
     openProject(proto, { role: 'protocol', create: true })
 
     dao.saveProtocol({ ...dao.getProtocol(), crop: 'wheat', targetPest: 'aphid' })
-    dao.replaceTreatments([Treatment.parse({ number: 1, name: 'A', rateUnit: 'KG/HA' })])
+    dao.replaceTreatments([
+      Treatment.parse({ number: 1, name: 'A', applications: [{ rateUnit: 'KG/HA' }] })
+    ])
     dao.replaceAssessmentDefs([
       AssessmentDef.parse({ partRated: 'PLANT', ratingType: 'yield', ratingUnit: '%', timing: '14 DA-A' })
     ])

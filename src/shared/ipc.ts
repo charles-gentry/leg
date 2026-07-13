@@ -18,6 +18,7 @@ export const IPC = {
   trialOpen: 'trial:open',
   trialGenerate: 'trial:generate',
   trialLockLayout: 'trial:lockLayout',
+  applicationActualsSave: 'trial:applicationActuals:save',
   plotSwap: 'plot:swap',
   plotMove: 'plot:move',
   layoutReshape: 'layout:reshape',

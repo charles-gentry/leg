@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useStore } from '../../store'
 import { Combobox } from '../../components/Combobox'
+import { TimingField } from '../../components/TimingField'
+import { ApplicationsEditor } from './ApplicationsEditor'
+import { TreatmentProgram, programSummary } from './TreatmentProgram'
+import { timingLabel } from '@shared/timing'
 import { validateDesign } from '@shared/design'
 import type { Protocol, Treatment, AssessmentDef, DesignType, LibraryCategory } from '@shared/types'
 
@@ -18,6 +22,14 @@ export function ProtocolView(): JSX.Element {
     })
   const [protocol, setProtocol] = useState<Protocol>(snapshot!.protocol)
   const [treatments, setTreatments] = useState<Treatment[]>(snapshot!.treatments)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const toggleExpanded = (n: number): void =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
+      return next
+    })
 
   // Resync local edit buffers only when a different file loads (not on every snapshot change).
   const filePath = snapshot!.filePath
@@ -99,7 +111,7 @@ export function ProtocolView(): JSX.Element {
     const number = treatments.length ? Math.max(...treatments.map((t) => t.number)) + 1 : 1
     saveTreatments([
       ...treatments,
-      { number, name: number === 1 ? 'Untreated Check' : '', product: '', rate: '', rateUnit: '', type: '' }
+      { number, name: number === 1 ? 'Untreated Check' : '', type: '', applications: [] }
     ])
   }
 
@@ -240,70 +252,89 @@ export function ProtocolView(): JSX.Element {
           ))}
       </div>
 
+      <ApplicationsEditor readOnly={readOnly} />
+
       <div className="card">
         <h2>Treatments</h2>
+        <p className="muted">
+          Each treatment is a program — its sequence of applications (product + rate at each timing).
+          Expand a row to edit the program.
+        </p>
         <table className="data">
           <thead>
             <tr>
-              <th style={{ width: 50 }}>#</th>
-              <th>Name</th>
-              <th>Product</th>
-              <th style={{ width: 90 }}>Rate</th>
-              <th style={{ width: 90 }}>Unit</th>
+              <th style={{ width: 40 }}></th>
+              <th style={{ width: 40 }}>#</th>
+              <th style={{ width: 200 }}>Name</th>
+              <th>Program</th>
               {!readOnly && <th style={{ width: 40 }}></th>}
             </tr>
           </thead>
           <tbody>
             {treatments.map((t, i) => (
-              <tr key={i}>
-                <td className="num">{t.number}</td>
-                <td>
-                  <input
-                    disabled={readOnly}
-                    value={t.name}
-                    onChange={(e) => updateTreatment(i, { name: e.target.value })}
-                    onBlur={() => saveTreatments(treatments)}
-                  />
-                </td>
-                <td>
-                  <input
-                    disabled={readOnly}
-                    value={t.product}
-                    onChange={(e) => updateTreatment(i, { product: e.target.value })}
-                    onBlur={() => saveTreatments(treatments)}
-                  />
-                </td>
-                <td>
-                  <input
-                    disabled={readOnly}
-                    value={t.rate}
-                    onChange={(e) => updateTreatment(i, { rate: e.target.value })}
-                    onBlur={() => saveTreatments(treatments)}
-                  />
-                </td>
-                <td>
-                  <Combobox
-                    category="unit"
-                    crop={protocol.crop}
-                    disabled={readOnly}
-                    value={t.rateUnit}
-                    onChange={(v) =>
-                      saveTreatments(treatments.map((x, idx) => (idx === i ? { ...x, rateUnit: v } : x)))
-                    }
-                  />
-                </td>
-                {!readOnly && (
+              <Fragment key={i}>
+                <tr>
                   <td>
                     <button
-                      className="danger"
-                      title="Remove"
-                      onClick={() => saveTreatments(treatments.filter((_, idx) => idx !== i))}
+                      className="expander"
+                      title={expanded.has(t.number) ? 'Collapse' : 'Expand program'}
+                      onClick={() => toggleExpanded(t.number)}
                     >
-                      ✕
+                      {expanded.has(t.number) ? '▾' : '▸'}
                     </button>
                   </td>
+                  <td className="num">{t.number}</td>
+                  <td>
+                    <input
+                      disabled={readOnly}
+                      value={t.name}
+                      onChange={(e) => updateTreatment(i, { name: e.target.value })}
+                      onBlur={() => saveTreatments(treatments)}
+                    />
+                  </td>
+                  <td
+                    className="muted"
+                    style={{ cursor: 'pointer', fontSize: 12 }}
+                    onClick={() => toggleExpanded(t.number)}
+                  >
+                    {programSummary(t)}
+                  </td>
+                  {!readOnly && (
+                    <td>
+                      <button
+                        className="danger"
+                        title="Remove treatment"
+                        onClick={() => saveTreatments(treatments.filter((_, idx) => idx !== i))}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  )}
+                </tr>
+                {expanded.has(t.number) && (
+                  <tr>
+                    <td />
+                    <td colSpan={readOnly ? 3 : 4}>
+                      <TreatmentProgram
+                        applications={snapshot!.applications}
+                        crop={protocol.crop}
+                        disabled={readOnly}
+                        value={t.applications}
+                        onChange={(lines) =>
+                          setTreatments(
+                            treatments.map((x, idx) => (idx === i ? { ...x, applications: lines } : x))
+                          )
+                        }
+                        onCommit={(lines) =>
+                          saveTreatments(
+                            treatments.map((x, idx) => (idx === i ? { ...x, applications: lines } : x))
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
                 )}
-              </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -323,8 +354,17 @@ export function ProtocolView(): JSX.Element {
 function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
   const { snapshot, setSnapshot, run } = useStore()
   const defs = snapshot!.assessmentDefs
+  const applications = snapshot!.applications
   const crop = snapshot!.protocol.crop
-  const [draft, setDraft] = useState({ partRated: '', ratingType: '', ratingUnit: '', timing: '', subsamples: 1 })
+  const [draft, setDraft] = useState({
+    partRated: '',
+    ratingType: '',
+    ratingUnit: '',
+    applicationRef: '',
+    daysAfter: null as number | null,
+    timing: '',
+    subsamples: 1
+  })
 
   const save = (next: AssessmentDef[]): void => {
     run('Saving assessments', async () => {
@@ -335,22 +375,25 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
   }
 
   const add = (): void => {
+    const label = timingLabel(draft)
     save([
       ...defs,
       {
         partRated: draft.partRated,
         ratingType: draft.ratingType,
         ratingUnit: draft.ratingUnit,
+        applicationRef: draft.applicationRef,
+        daysAfter: draft.daysAfter,
         timing: draft.timing,
         ratingDate: '',
         description:
-          [draft.ratingType, draft.partRated, draft.timing].filter(Boolean).join(' ') || 'Assessment',
+          [draft.ratingType, draft.partRated, label].filter(Boolean).join(' ') || 'Assessment',
         ordinal: defs.length,
         analyze: true,
         subsamples: Math.max(1, draft.subsamples || 1)
       }
     ])
-    setDraft({ partRated: '', ratingType: '', ratingUnit: '', timing: '', subsamples: 1 })
+    setDraft({ partRated: '', ratingType: '', ratingUnit: '', applicationRef: '', daysAfter: null, timing: '', subsamples: 1 })
   }
 
   const toggleAnalyze = (i: number): void => {
@@ -383,7 +426,7 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
                 <td>{d.ratingType || '—'}</td>
                 <td>{d.partRated || '—'}</td>
                 <td>{d.ratingUnit || '—'}</td>
-                <td>{d.timing || '—'}</td>
+                <td>{timingLabel(d) || '—'}</td>
                 <td className="num">{d.subsamples ?? 1}</td>
                 <td className="num">
                   <input
@@ -437,15 +480,11 @@ function CoreAssessments({ readOnly }: { readOnly: boolean }): JSX.Element {
               onChange={(v) => setDraft({ ...draft, ratingUnit: v })}
             />
           </div>
-          <div style={{ width: 130 }}>
-            <label>Timing</label>
-            <Combobox
-              category="timing"
-              crop={crop}
-              value={draft.timing}
-              onChange={(v) => setDraft({ ...draft, timing: v })}
-            />
-          </div>
+          <TimingField
+            applications={applications}
+            value={draft}
+            onChange={(v) => setDraft({ ...draft, ...v })}
+          />
           <div style={{ width: 90 }}>
             <label>Subsamples</label>
             <input

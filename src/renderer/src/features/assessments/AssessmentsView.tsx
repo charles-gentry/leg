@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../../store'
 import { Combobox } from '../../components/Combobox'
+import { TimingField } from '../../components/TimingField'
+import { timingLabel } from '@shared/timing'
 import type { AssessmentHeader } from '@shared/types'
 
 export function AssessmentsView(): JSX.Element {
@@ -28,10 +30,13 @@ function HeaderManager({
   headers: AssessmentHeader[]
 }): JSX.Element {
   const { snapshot, setSnapshot, run } = useStore()
+  const applications = snapshot!.applications
   const [draft, setDraft] = useState({
     partRated: '',
     ratingType: '',
     ratingUnit: '',
+    applicationRef: '',
+    daysAfter: null as number | null,
     timing: '',
     analyze: true,
     subsamples: 1
@@ -39,15 +44,18 @@ function HeaderManager({
 
   const add = (): void => {
     run('Adding assessment', async () => {
+      const label = timingLabel(draft)
       const next = await window.art.assessments.addSiteHeader({
         trialId,
         partRated: draft.partRated,
         ratingType: draft.ratingType,
         ratingUnit: draft.ratingUnit,
+        applicationRef: draft.applicationRef,
+        daysAfter: draft.daysAfter,
         timing: draft.timing,
         ratingDate: '',
         description:
-          [draft.ratingType, draft.partRated, draft.timing].filter(Boolean).join(' ') || 'Assessment',
+          [draft.ratingType, draft.partRated, label].filter(Boolean).join(' ') || 'Assessment',
         ordinal: headers.length,
         origin: 'site',
         locked: false,
@@ -57,7 +65,7 @@ function HeaderManager({
       // Refetch so the new coded terms surface in library suggestions/labels.
       const s = await window.art.project.snapshot()
       setSnapshot(s ?? { ...snapshot!, assessmentHeaders: next })
-      setDraft({ partRated: '', ratingType: '', ratingUnit: '', timing: '', analyze: true, subsamples: 1 })
+      setDraft({ partRated: '', ratingType: '', ratingUnit: '', applicationRef: '', daysAfter: null, timing: '', analyze: true, subsamples: 1 })
     })
   }
 
@@ -115,7 +123,7 @@ function HeaderManager({
                 <td>{h.ratingType || '—'}</td>
                 <td>{h.partRated || '—'}</td>
                 <td>{h.ratingUnit || '—'}</td>
-                <td>{h.timing || '—'}</td>
+                <td>{timingLabel(h) || '—'}</td>
                 <td className="num">
                   {h.origin === 'core' ? (
                     h.subsamples ?? 1
@@ -184,15 +192,11 @@ function HeaderManager({
             onChange={(v) => setDraft({ ...draft, ratingUnit: v })}
           />
         </div>
-        <div style={{ width: 130 }}>
-          <label>Timing</label>
-          <Combobox
-            category="timing"
-            crop={snapshot!.protocol.crop}
-            value={draft.timing}
-            onChange={(v) => setDraft({ ...draft, timing: v })}
-          />
-        </div>
+        <TimingField
+          applications={applications}
+          value={draft}
+          onChange={(v) => setDraft({ ...draft, ...v })}
+        />
         <div style={{ width: 90 }}>
           <label>Subsamples</label>
           <input

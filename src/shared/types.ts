@@ -122,25 +122,58 @@ export const Protocol = z.object({
 })
 export type Protocol = z.infer<typeof Protocol>
 
+/**
+ * One line of a treatment's program: a product applied at a given rate at a given application timing.
+ * `applicationRef` is an application timing code (A/B/C matching an `Application`), or '' for an
+ * unscheduled/at-planting line.
+ */
+export const TreatmentApplication = z.object({
+  id: z.number().int().optional(),
+  ordinal: z.number().int().default(0),
+  applicationRef: z.string().default(''),
+  product: z.string().default(''),
+  rate: z.string().default(''),
+  rateUnit: z.string().default('')
+})
+export type TreatmentApplication = z.infer<typeof TreatmentApplication>
+
+/**
+ * An experimental comparison unit. Its content is a **program**: an ordered sequence of applications
+ * (`applications`), each with its own product, rate, and timing — so a treatment can be e.g.
+ * "Product X at A, then Product Y at B". Untreated = no lines; a simple treatment = one line.
+ */
 export const Treatment = z.object({
   id: z.number().int().optional(),
   number: z.number().int().positive(),
   name: z.string().default(''),
-  product: z.string().default(''),
-  rate: z.string().default(''),
-  rateUnit: z.string().default(''),
-  type: z.string().default('')
+  type: z.string().default(''),
+  applications: z.array(TreatmentApplication).default([])
 })
 export type Treatment = z.infer<typeof Treatment>
 
+/**
+ * A protocol-defined application (the *plan*): ordered A/B/C… treatments-application events, each a
+ * timing code + intended crop growth stage. The actual date it happened is trial-side
+ * (`ApplicationActual`), because one protocol serves many sites with different planting dates.
+ * Assessments anchor their timing to an application (see `AssessmentDef.applicationRef`).
+ */
 export const Application = z.object({
   id: z.number().int().optional(),
+  ordinal: z.number().int().default(0),
   timingCode: z.string().default(''),
-  description: z.string().default(''),
-  plannedDate: z.string().default(''),
-  growthStage: z.string().default('')
+  /** Intended crop growth stage at this application (from the growth_stage library). */
+  targetGrowthStage: z.string().default(''),
+  description: z.string().default('')
 })
 export type Application = z.infer<typeof Application>
+
+/** Trial-side record of when an application actually happened (keyed by the plan's timing code). */
+export const ApplicationActual = z.object({
+  id: z.number().int().optional(),
+  timingCode: z.string().default(''),
+  actualDate: z.string().default('')
+})
+export type ApplicationActual = z.infer<typeof ApplicationActual>
 
 // ---------------------------------------------------------------------------
 // Trial + layout
@@ -193,6 +226,11 @@ export const AssessmentDef = z.object({
   partRated: z.string().default(''),
   ratingType: z.string().default(''),
   ratingUnit: z.string().default(''),
+  /** Anchor: the application (timing code) this assessment is timed relative to; '' = unanchored. */
+  applicationRef: z.string().default(''),
+  /** Days after the anchored application; null when unanchored. */
+  daysAfter: z.number().int().nullable().default(null),
+  /** Free-text timing override; when set it wins over the derived "N DA-<code>" label. */
   timing: z.string().default(''),
   ratingDate: z.string().default(''),
   description: z.string().default(''),
@@ -327,6 +365,8 @@ export interface ProjectSnapshot {
   plots: Plot[]
   assessmentHeaders: AssessmentHeader[]
   assessmentValues: AssessmentValue[]
+  /** Trial-side actual application dates (empty for a protocol document). */
+  applicationActuals: ApplicationActual[]
   /** Snapshot of the coded terms this document references (travels into trials). */
   libraryTerms: LibraryTerm[]
 }

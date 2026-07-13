@@ -5,6 +5,7 @@ import {
   Protocol,
   Treatment,
   Application,
+  ApplicationActual,
   AssessmentDef,
   AssessmentHeader,
   AssessmentValue,
@@ -341,6 +342,16 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const n = z.number().int().min(1).parse(cols)
     dao.reshapeLayout(n)
     recordAudit('layout.reshape', 'trial', `Reshaped layout to ${n} columns`, { cols: n })
+    return dao.snapshot()
+  })
+
+  handle(IPC.applicationActualsSave, (list: unknown): ProjectSnapshot => {
+    assertRole('trial')
+    const actuals = z.array(ApplicationActual).parse(list)
+    dao.replaceApplicationActuals(actuals)
+    recordAudit('application.actuals', 'application_actual', `Recorded ${actuals.length} application date(s)`, {
+      actuals
+    })
     return dao.snapshot()
   })
 

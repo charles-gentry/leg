@@ -4,6 +4,7 @@ import type {
   Protocol,
   Treatment,
   Application,
+  ApplicationActual,
   AssessmentDef,
   AssessmentHeader,
   AssessmentValue,
@@ -45,6 +46,8 @@ const api = {
     generate: (cfg: Partial<SiteMetadata> & { seed?: number }): Promise<ProjectSnapshot> =>
       ipcRenderer.invoke(IPC.trialGenerate, cfg),
     lockLayout: (): Promise<ProjectSnapshot> => ipcRenderer.invoke(IPC.trialLockLayout),
+    saveApplicationActuals: (list: ApplicationActual[]): Promise<ProjectSnapshot> =>
+      ipcRenderer.invoke(IPC.applicationActualsSave, list),
     swapPlots: (a: number, b: number): Promise<ProjectSnapshot> =>
       ipcRenderer.invoke(IPC.plotSwap, a, b),
     movePlot: (plotId: number, mapRow: number, mapCol: number): Promise<ProjectSnapshot> =>

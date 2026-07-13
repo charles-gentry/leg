@@ -373,6 +373,28 @@ table.data td.num {
   color: var(--muted);
 }
 
+/* Treatment program (expandable row + application-line sub-editor) */
+.expander {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 4px;
+}
+.expander:hover {
+  background: none;
+  color: var(--text);
+}
+.treatment-program {
+  padding: 8px 4px 4px;
+  background: var(--bg);
+  border-radius: 6px;
+}
+.treatment-program table.data {
+  background: var(--panel);
+}
+
 /* Combobox (free-type picklist) */
 .combobox-menu {
   position: absolute;

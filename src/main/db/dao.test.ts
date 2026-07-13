@@ -5,7 +5,8 @@ import { tmpdir } from 'os'
 import { openProject, closeProject, getRole } from './connection.js'
 import * as dao from './dao.js'
 import { assertProtocolEditable, assertHeaderEditable } from './guards.js'
-import type { Treatment, Trial, Plot, AssessmentDef } from '@shared/types.js'
+import { AssessmentDef } from '@shared/types.js'
+import type { Treatment, Trial, Plot } from '@shared/types.js'
 
 /** Empty site metadata for building trial literals in tests. */
 const SITE = {
@@ -55,7 +56,7 @@ describe('treatments', () => {
       { number: 2, name: 'Product B' },
       { number: 1, name: 'Untreated' },
       { number: 3, name: 'Product C' }
-    ].map((t) => ({ ...t, product: '', rate: '', rateUnit: '', type: '' }))
+    ].map((t) => ({ ...t, type: '', applications: [] }))
     dao.replaceTreatments(list)
     const back = dao.listTreatments()
     expect(back.map((t) => t.number)).toEqual([1, 2, 3])
@@ -66,14 +67,7 @@ describe('treatments', () => {
 describe('trial + plots + assessments', () => {
   function seedTrial(): { headerId: number; plots: Plot[] } {
     dao.replaceTreatments(
-      [1, 2, 3].map((n) => ({
-        number: n,
-        name: `T${n}`,
-        product: '',
-        rate: '',
-        rateUnit: '',
-        type: ''
-      }))
+      [1, 2, 3].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
     )
     const treatments = dao.listTreatments()
     dao.saveProtocol({ ...dao.getProtocol(), design: 'RCB', replicates: 2 })
@@ -100,6 +94,8 @@ describe('trial + plots + assessments', () => {
       partRated: 'PLANT',
       ratingType: 'CONTRO',
       ratingUnit: '%',
+      applicationRef: '',
+      daysAfter: null,
       timing: '14 DA-A',
       ratingDate: '',
       description: 'Control',
@@ -114,7 +110,7 @@ describe('trial + plots + assessments', () => {
 
   it('defaults plot.block to the rep, and round-trips an explicit incomplete block', () => {
     dao.replaceTreatments(
-      [1, 2, 3, 4].map((n) => ({ number: n, name: `T${n}`, product: '', rate: '', rateUnit: '', type: '' }))
+      [1, 2, 3, 4].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
     )
     const t = dao.listTreatments()
     // Two treatments per incomplete block (block size 2), one replicate: blocks 1 and 2.
@@ -209,8 +205,8 @@ describe('trial + plots + assessments', () => {
 describe('assessment definitions', () => {
   it('replaces and lists protocol-owned assessment defs', () => {
     const defs: AssessmentDef[] = [
-      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '7 DA-A', ratingDate: '', description: 'Control 7', ordinal: 0, analyze: true, subsamples: 5 },
-      { partRated: 'PLANT', ratingType: 'NOTE', ratingUnit: '', timing: '', ratingDate: '', description: 'Notes', ordinal: 1, analyze: false, subsamples: 1 }
+      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', applicationRef: '', daysAfter: null, timing: '7 DA-A', ratingDate: '', description: 'Control 7', ordinal: 0, analyze: true, subsamples: 5 },
+      { partRated: 'PLANT', ratingType: 'NOTE', ratingUnit: '', applicationRef: '', daysAfter: null, timing: '', ratingDate: '', description: 'Notes', ordinal: 1, analyze: false, subsamples: 1 }
     ]
     dao.replaceAssessmentDefs(defs)
     const back = dao.listAssessmentDefs()
@@ -228,10 +224,10 @@ describe('protocol → trial', () => {
     openProject(path, { role: 'protocol', create: true })
     dao.saveProtocol({ ...dao.getProtocol(), title: 'Rust Trial', design: 'CRD', replicates: 3 })
     dao.replaceTreatments(
-      [1, 2].map((n) => ({ number: n, name: `T${n}`, product: '', rate: '', rateUnit: '', type: '' }))
+      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
     )
     dao.replaceAssessmentDefs([
-      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', timing: '14 DA-A', ratingDate: '', description: 'Control', ordinal: 0, analyze: false, subsamples: 4 }
+      { partRated: 'PLANT', ratingType: 'CONTRO', ratingUnit: '%', applicationRef: '', daysAfter: null, timing: '14 DA-A', ratingDate: '', description: 'Control', ordinal: 0, analyze: false, subsamples: 4 }
     ])
     const uid = dao.getProtocol().protocolUid
     closeProject()
@@ -288,6 +284,8 @@ describe('protocol → trial', () => {
       partRated: '',
       ratingType: 'SITE',
       ratingUnit: '',
+      applicationRef: '',
+      daysAfter: null,
       timing: '',
       ratingDate: '',
       description: 'Site column',
@@ -304,7 +302,7 @@ describe('protocol → trial', () => {
 describe('layout lock + plot exclusion', () => {
   function makeTrial(): number {
     dao.replaceTreatments(
-      [1, 2].map((n) => ({ number: n, name: `T${n}`, product: '', rate: '', rateUnit: '', type: '' }))
+      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
     )
     const t = dao.listTreatments()
     return dao.replaceTrialWithPlots({ protocolId: 1, plotRows: 1, plotCols: 2, seed: 1, ...SITE }, [
@@ -336,5 +334,77 @@ describe('layout lock + plot exclusion', () => {
     expect(dao.getPlot(p.id!)).toMatchObject({ excluded: true, excludeReason: 'wrong treatment applied' })
     dao.setPlotExcluded(p.id!, false, '')
     expect(dao.getPlot(p.id!)).toMatchObject({ excluded: false, excludeReason: '' })
+  })
+})
+
+describe('applications', () => {
+  it('round-trips protocol applications ordered, and travels into a trial', () => {
+    const proto = join(dir, 'p.artproto')
+    openProject(proto, { role: 'protocol', create: true })
+    dao.replaceApplications([
+      { ordinal: 0, timingCode: 'A', targetGrowthStage: 'BBCH 30', description: 'first spray' },
+      { ordinal: 1, timingCode: 'B', targetGrowthStage: 'BBCH 60', description: 'second spray' }
+    ])
+    expect(dao.listApplications().map((a) => a.timingCode)).toEqual(['A', 'B'])
+    expect(dao.listApplications()[0].targetGrowthStage).toBe('BBCH 30')
+    // A treatment is a program: a sequence of application lines, each with its own product/rate/timing.
+    dao.replaceTreatments([
+      { number: 1, name: 'Untreated', type: '', applications: [] },
+      {
+        number: 2,
+        name: 'Program',
+        type: '',
+        applications: [
+          { ordinal: 0, applicationRef: 'A', product: 'Fungicide X', rate: '1', rateUnit: 'L/HA' },
+          { ordinal: 1, applicationRef: 'B', product: 'Fungicide Y', rate: '0.5', rateUnit: 'L/HA' }
+        ]
+      }
+    ])
+    const prog = dao.listTreatments()[1]
+    expect(prog.applications).toHaveLength(2)
+    expect(prog.applications.map((l) => `${l.applicationRef}:${l.product}`)).toEqual([
+      'A:Fungicide X',
+      'B:Fungicide Y'
+    ])
+    closeProject()
+
+    dao.createTrialFromProtocol(proto, join(dir, 't.arttrial'))
+    expect(dao.listApplications().map((a) => a.timingCode)).toEqual(['A', 'B'])
+    // The whole program travels with the treatment.
+    expect(dao.listTreatments()[1].applications).toHaveLength(2)
+    expect(dao.listTreatments()[1].applications[1].product).toBe('Fungicide Y')
+  })
+
+  it('records trial-side application actuals (keyed by timing code)', () => {
+    openProject(join(dir, 't.arttrial'), { role: 'trial', create: true })
+    dao.replaceApplicationActuals([
+      { timingCode: 'A', actualDate: '2026-05-01' },
+      { timingCode: 'B', actualDate: '2026-05-20' }
+    ])
+    const back = dao.listApplicationActuals()
+    expect(back).toHaveLength(2)
+    expect(back.find((a) => a.timingCode === 'A')?.actualDate).toBe('2026-05-01')
+    // Snapshot exposes them.
+    expect(dao.snapshot().applicationActuals).toHaveLength(2)
+  })
+
+  it('keeps assessment anchor fields (application_ref + days_after) through save/materialize', () => {
+    const proto = join(dir, 'p2.artproto')
+    openProject(proto, { role: 'protocol', create: true })
+    dao.replaceAssessmentDefs([
+      AssessmentDef.parse({ ratingType: 'CONTRO', applicationRef: 'A', daysAfter: 14, description: 'Control 14 DA-A' })
+    ])
+    const def = dao.listAssessmentDefs()[0]
+    expect(def.applicationRef).toBe('A')
+    expect(def.daysAfter).toBe(14)
+
+    const trialId = dao.replaceTrialWithPlots(
+      { protocolId: 1, plotRows: 1, plotCols: 1, seed: 1, ...SITE },
+      []
+    )
+    dao.materializeCoreHeaders(trialId)
+    const h = dao.listAssessmentHeaders(trialId)[0]
+    expect(h.applicationRef).toBe('A')
+    expect(h.daysAfter).toBe(14)
   })
 })

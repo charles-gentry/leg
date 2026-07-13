@@ -40,8 +40,8 @@ describe('audit trail', () => {
   it('getAssessmentValue returns the prior value then the updated one', () => {
     // Minimal trial + plot + header to attach a value to.
     dao.replaceTreatments([
-      { number: 1, name: 'A', product: '', rate: '', rateUnit: '', type: '' },
-      { number: 2, name: 'B', product: '', rate: '', rateUnit: '', type: '' }
+      { number: 1, name: 'A', type: '', applications: [] },
+      { number: 2, name: 'B', type: '', applications: [] }
     ])
     const t = dao.listTreatments()
     const trialId = dao.replaceTrialWithPlots(
@@ -66,6 +66,8 @@ describe('audit trail', () => {
       partRated: '',
       ratingType: 'CONTRO',
       ratingUnit: '%',
+      applicationRef: '',
+      daysAfter: null,
       timing: '',
       ratingDate: '',
       description: 'Control',

@@ -31,6 +31,21 @@ export function SiteView(): JSX.Element {
   const [site, setSite] = useState<SiteMetadata>(initial)
   const [seedText, setSeedText] = useState(trial ? String(trial.seed) : '')
 
+  const applications = snapshot!.applications
+  const actualDate = (code: string): string =>
+    snapshot!.applicationActuals.find((a) => a.timingCode === code)?.actualDate ?? ''
+  const setActualDate = (code: string, date: string): void => {
+    const others = snapshot!.applicationActuals.filter((a) => a.timingCode !== code)
+    run('Recording application date', async () =>
+      setSnapshot(
+        await window.art.trial.saveApplicationActuals([
+          ...others.map((a) => ({ timingCode: a.timingCode, actualDate: a.actualDate })),
+          { timingCode: code, actualDate: date }
+        ])
+      )
+    )
+  }
+
   const treatmentCount = snapshot!.treatments.length
   const canGenerate = treatmentCount >= 2
 
@@ -72,6 +87,31 @@ export function SiteView(): JSX.Element {
           </div>
         </div>
       </div>
+
+      {applications.length > 0 && (
+        <div className="card">
+          <h2>Application Dates</h2>
+          <p className="muted">
+            When each protocol application actually happened at this site. Assessment dates timed
+            &quot;N&nbsp;days after&quot; an application are derived from these.
+          </p>
+          <div className="row">
+            {applications.map((a) => (
+              <div key={a.id ?? a.timingCode} style={{ width: 190 }}>
+                <label>
+                  Application {a.timingCode}
+                  {a.targetGrowthStage ? ` · ${a.targetGrowthStage}` : ''}
+                </label>
+                <input
+                  type="date"
+                  value={actualDate(a.timingCode)}
+                  onChange={(e) => setActualDate(a.timingCode, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h2>Randomization</h2>

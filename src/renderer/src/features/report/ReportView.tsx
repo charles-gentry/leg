@@ -212,19 +212,39 @@ export function ReportView(): JSX.Element {
               <tr>
                 <th style={{ width: 40 }}>#</th>
                 <th>Name</th>
+                <th style={{ width: 70 }}>Timing</th>
                 <th>Product</th>
                 <th>Rate</th>
               </tr>
             </thead>
             <tbody>
-              {snapshot!.treatments.map((t) => (
-                <tr key={t.number}>
-                  <td className="num">{t.number}</td>
-                  <td>{t.name || `Treatment ${t.number}`}</td>
-                  <td>{t.product || '—'}</td>
-                  <td>{[t.rate, t.rateUnit].filter(Boolean).join(' ') || '—'}</td>
-                </tr>
-              ))}
+              {snapshot!.treatments.map((t) =>
+                t.applications.length === 0 ? (
+                  <tr key={t.number}>
+                    <td className="num">{t.number}</td>
+                    <td>{t.name || `Treatment ${t.number}`}</td>
+                    <td>—</td>
+                    <td className="muted">untreated</td>
+                    <td>—</td>
+                  </tr>
+                ) : (
+                  t.applications.map((l, li) => (
+                    <tr key={`${t.number}-${li}`}>
+                      {li === 0 ? (
+                        <>
+                          <td className="num" rowSpan={t.applications.length}>
+                            {t.number}
+                          </td>
+                          <td rowSpan={t.applications.length}>{t.name || `Treatment ${t.number}`}</td>
+                        </>
+                      ) : null}
+                      <td>{l.applicationRef || '—'}</td>
+                      <td>{l.product || '—'}</td>
+                      <td>{[l.rate, l.rateUnit].filter(Boolean).join(' ') || '—'}</td>
+                    </tr>
+                  ))
+                )
+              )}
             </tbody>
           </table>
         </div>
