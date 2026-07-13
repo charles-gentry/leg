@@ -1,8 +1,8 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { useStore, type DocKind } from '../../store'
-import { PlotGrid, type ColourBy } from './PlotGrid'
+import { Fragment, useMemo, type CSSProperties } from 'react'
+import { useStore, type DocKind, type DocColourBy } from '../../store'
+import { PlotGrid } from './PlotGrid'
 import { timingLabel, assessmentDate } from '@shared/timing'
-import type { AssessmentHeader, Property } from '@shared/types'
+import type { AssessmentHeader, Property, PrintProfile } from '@shared/types'
 
 const DOC_TITLE: Record<DocKind, string> = {
   fieldmap: 'Field Map',
@@ -10,6 +10,16 @@ const DOC_TITLE: Record<DocKind, string> = {
   datasheet: 'Data Collection Sheets',
   spray: 'Spray Record',
   summary: 'Trial Summary'
+}
+
+const IN_PER_MM = 1 / 25.4
+const PX_PER_MM = 96 / 25.4 // CSS px per mm at 96dpi
+
+/** Largest square cell (px) that fits `cols` columns across `printableMm` of page width. */
+function fitCell(cols: number, printableMm: number, min: number, max: number): number {
+  const px = printableMm * PX_PER_MM
+  const rowHeader = 26 // the left row-number column
+  return Math.max(min, Math.min(max, Math.floor((px - rowHeader) / cols) - 3))
 }
 
 /**
@@ -33,15 +43,42 @@ export interface LabelStock {
   marginLeft: number
   /** Base font size (px) for the label body, sized to the label height. */
   font: number
+  /** Labels per sheet (for the count/estimate hint). */
+  perSheet: number
 }
 
 const LABEL_STOCKS: LabelStock[] = [
-  { id: 'avery5163', name: 'Avery 5163 — 4×2″, 10/sheet (Letter)', page: 'letter', cols: 2, w: 101.6, h: 50.8, gapX: 4.9, gapY: 0, marginTop: 12.7, marginLeft: 4.2, font: 12 },
-  { id: 'avery5164', name: 'Avery 5164 — 4×3⅓″, 6/sheet (Letter)', page: 'letter', cols: 2, w: 101.6, h: 84.7, gapX: 4.9, gapY: 0, marginTop: 12.7, marginLeft: 4.2, font: 13 },
-  { id: 'avery5160', name: 'Avery 5160 — 2⅝×1″, 30/sheet (Letter)', page: 'letter', cols: 3, w: 66.7, h: 25.4, gapX: 3.0, gapY: 0, marginTop: 12.7, marginLeft: 4.8, font: 8 },
-  { id: 'averyL7165', name: 'Avery L7165 — 99.1×67.7 mm, 8/sheet (A4)', page: 'a4', cols: 2, w: 99.1, h: 67.7, gapX: 2.5, gapY: 0, marginTop: 13.0, marginLeft: 4.65, font: 13 },
-  { id: 'averyL7159', name: 'Avery L7159 — 63.5×33.9 mm, 24/sheet (A4)', page: 'a4', cols: 3, w: 63.5, h: 33.9, gapX: 2.5, gapY: 0, marginTop: 13.5, marginLeft: 7.2, font: 9 }
+  { id: 'avery5163', name: 'Avery 5163 — 4×2″, 10/sheet (Letter)', page: 'letter', cols: 2, w: 101.6, h: 50.8, gapX: 4.9, gapY: 0, marginTop: 12.7, marginLeft: 4.2, font: 12, perSheet: 10 },
+  { id: 'avery5164', name: 'Avery 5164 — 4×3⅓″, 6/sheet (Letter)', page: 'letter', cols: 2, w: 101.6, h: 84.7, gapX: 4.9, gapY: 0, marginTop: 12.7, marginLeft: 4.2, font: 13, perSheet: 6 },
+  { id: 'avery5160', name: 'Avery 5160 — 2⅝×1″, 30/sheet (Letter)', page: 'letter', cols: 3, w: 66.7, h: 25.4, gapX: 3.0, gapY: 0, marginTop: 12.7, marginLeft: 4.8, font: 8, perSheet: 30 },
+  { id: 'averyL7165', name: 'Avery L7165 — 99.1×67.7 mm, 8/sheet (A4)', page: 'a4', cols: 2, w: 99.1, h: 67.7, gapX: 2.5, gapY: 0, marginTop: 13.0, marginLeft: 4.65, font: 13, perSheet: 8 },
+  { id: 'averyL7159', name: 'Avery L7159 — 63.5×33.9 mm, 24/sheet (A4)', page: 'a4', cols: 3, w: 63.5, h: 33.9, gapX: 2.5, gapY: 0, marginTop: 13.5, marginLeft: 7.2, font: 9, perSheet: 24 }
 ]
+
+/** The print geometry each document wants (see PrintProfile). Only the report/summary keep the
+ *  running "ART / page-number" header+footer; maps, labels and sheets suppress it. */
+function printProfileFor(docKind: DocKind, stock: LabelStock): PrintProfile | undefined {
+  switch (docKind) {
+    case 'fieldmap':
+      return { landscape: true, header: false, margins: { top: 0.3, bottom: 0.3, left: 0.3, right: 0.3 } }
+    case 'labels':
+      return {
+        pageSize: stock.page === 'a4' ? 'A4' : 'Letter',
+        header: false,
+        margins: {
+          top: stock.marginTop * IN_PER_MM,
+          left: stock.marginLeft * IN_PER_MM,
+          bottom: 0,
+          right: 0
+        }
+      }
+    case 'datasheet':
+    case 'spray':
+      return { header: false, margins: { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 } }
+    case 'summary':
+      return undefined // report-style: A4 portrait with the header/footer
+  }
+}
 
 /**
  * Renders a single printable document, chosen from the top-level Print menu (not the workflow
@@ -49,30 +86,36 @@ const LABEL_STOCKS: LabelStock[] = [
  * print/export actions; there is no on-page document switcher.
  */
 export function DocumentsView(): JSX.Element {
-  const { snapshot, docKind, run } = useStore()
-  const [colourBy, setColourBy] = useState<ColourBy>('treatment')
-  const [stockId, setStockId] = useState<string>(LABEL_STOCKS[0].id)
-  const [prefilled, setPrefilled] = useState(false)
-  // Assessment columns hidden from the data sheet (by header id) — lets a wide sheet fit the page.
-  const [hidden, setHidden] = useState<Set<number>>(new Set())
+  const {
+    snapshot,
+    docKind,
+    returnView,
+    setView,
+    docColourBy,
+    setDocColourBy,
+    docStockId,
+    setDocStockId,
+    docPrefilled,
+    setDocPrefilled,
+    docHiddenCols,
+    setDocHiddenCols,
+    run
+  } = useStore()
 
   const protocol = snapshot!.protocol
   const trial = snapshot!.trial
   const isAlpha = protocol.design === 'ALPHA'
-  const stock = LABEL_STOCKS.find((s) => s.id === stockId) ?? LABEL_STOCKS[0]
+  const stock = LABEL_STOCKS.find((s) => s.id === docStockId) ?? LABEL_STOCKS[0]
   const allHeaders = [...snapshot!.assessmentHeaders].sort((a, b) => a.ordinal - b.ordinal)
+  const hidden = useMemo(() => new Set(docHiddenCols), [docHiddenCols])
   const toggleHidden = (id: number): void =>
-    setHidden((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    setDocHiddenCols(hidden.has(id) ? docHiddenCols.filter((x) => x !== id) : [...docHiddenCols, id])
 
-  const exportPdf = (): void => {
+  const savePdf = (): void => {
     run('Exporting PDF', async () => {
       await window.art.report.exportPdf({
-        title: `${protocol.title || 'Trial'} — ${DOC_TITLE[docKind]}`
+        title: `${protocol.title || 'Trial'} — ${DOC_TITLE[docKind]}`,
+        print: printProfileFor(docKind, stock)
       })
     })
   }
@@ -89,13 +132,27 @@ export function DocumentsView(): JSX.Element {
   return (
     <>
       <div className="card no-print">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="link" style={{ padding: 0 }} onClick={() => setView(returnView)}>
+          ← Back
+        </button>
+        <div
+          className="row"
+          style={{ justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}
+        >
           <div className="row" style={{ gap: 16, alignItems: 'center' }}>
-            <h2 style={{ margin: 0 }}>{DOC_TITLE[docKind]}</h2>
+            <div>
+              <h2 style={{ margin: 0 }}>{DOC_TITLE[docKind]}</h2>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Print preview
+              </span>
+            </div>
             {docKind === 'fieldmap' && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                 <label style={{ margin: 0 }}>Colour by</label>
-                <select value={colourBy} onChange={(e) => setColourBy(e.target.value as ColourBy)}>
+                <select
+                  value={docColourBy}
+                  onChange={(e) => setDocColourBy(e.target.value as DocColourBy)}
+                >
                   <option value="none">None</option>
                   <option value="treatment">Treatment</option>
                   <option value="rep">Rep</option>
@@ -106,7 +163,7 @@ export function DocumentsView(): JSX.Element {
             {docKind === 'labels' && (
               <div className="row" style={{ gap: 6, alignItems: 'center' }}>
                 <label style={{ margin: 0 }}>Label stock</label>
-                <select value={stockId} onChange={(e) => setStockId(e.target.value)}>
+                <select value={stock.id} onChange={(e) => setDocStockId(e.target.value)}>
                   {LABEL_STOCKS.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -119,24 +176,35 @@ export function DocumentsView(): JSX.Element {
               <label className="checkbox-inline" style={{ margin: 0 }}>
                 <input
                   type="checkbox"
-                  checked={prefilled}
-                  onChange={(e) => setPrefilled(e.target.checked)}
+                  checked={docPrefilled}
+                  onChange={(e) => setDocPrefilled(e.target.checked)}
                 />
                 Pre-fill recorded values
               </label>
             )}
           </div>
           <div className="row">
-            <button className="primary" onClick={exportPdf}>
-              Export PDF
+            <button className="primary" onClick={savePdf}>
+              Save as PDF…
             </button>
-            <button onClick={() => window.print()}>Print</button>
+            <button onClick={() => window.print()}>Print…</button>
           </div>
         </div>
 
         {docKind === 'datasheet' && allHeaders.length > 0 && (
           <div className="row" style={{ marginTop: 10, gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
             <span className="muted" style={{ fontSize: 13 }}>Columns:</span>
+            <button className="link" style={{ padding: 0 }} onClick={() => setDocHiddenCols([])}>
+              All
+            </button>
+            <button
+              className="link"
+              style={{ padding: 0 }}
+              onClick={() => setDocHiddenCols(allHeaders.map((h) => h.id!))}
+            >
+              None
+            </button>
+            <span className="muted" style={{ opacity: 0.5 }}>|</span>
             {allHeaders.map((h) => (
               <label key={h.id} className="checkbox-inline" style={{ margin: 0 }}>
                 <input
@@ -151,9 +219,9 @@ export function DocumentsView(): JSX.Element {
         )}
       </div>
 
-      {docKind === 'fieldmap' && <FieldMapDoc colourBy={colourBy} />}
+      {docKind === 'fieldmap' && <FieldMapDoc colourBy={docColourBy} />}
       {docKind === 'labels' && <PlotLabelsDoc stock={stock} />}
-      {docKind === 'datasheet' && <DataSheetDoc prefilled={prefilled} hidden={hidden} />}
+      {docKind === 'datasheet' && <DataSheetDoc prefilled={docPrefilled} hidden={hidden} />}
       {docKind === 'spray' && <SprayRecordDoc />}
       {docKind === 'summary' && <SummaryDoc />}
     </>
@@ -179,16 +247,19 @@ function DocHeader({ subtitle }: { subtitle: string }): JSX.Element {
   )
 }
 
-/** B1 — the physical plot layout, printed large for use in the field. */
-function FieldMapDoc({ colourBy }: { colourBy: ColourBy }): JSX.Element {
+/** B1 — the physical plot layout, printed large for use in the field. Cells shrink to fit an A4
+ *  landscape page so wide trials don't clip. */
+function FieldMapDoc({ colourBy }: { colourBy: DocColourBy }): JSX.Element {
   const { snapshot } = useStore()
   const protocol = snapshot!.protocol
+  // A4 landscape printable width ≈ 297mm − 2×0.3in margins.
+  const cell = fitCell(snapshot!.trial!.plotCols, 297 - 2 * 7.62, 24, 64)
   return (
     <div className="doc-page">
       <DocHeader
         subtitle={`Field map — ${protocol.design}, ${protocol.replicates} reps, ${snapshot!.plots.length} plots`}
       />
-      <PlotGrid snapshot={snapshot!} colourBy={colourBy} cell={56} />
+      <PlotGrid snapshot={snapshot!} colourBy={colourBy} cell={cell} />
       <p className="muted doc-foot">
         Rows are numbered from the bottom-left corner. Each cell shows the plot number, treatment
         (T#), and rep (R#){protocol.design === 'ALPHA' ? ' and block (B#)' : ''}.
@@ -222,6 +293,10 @@ function SummaryDoc(): JSX.Element {
   const headerTitle = (h: AssessmentHeader): string =>
     h.description || h.ratingType || `Assessment ${h.ordinal + 1}`
   const headers = [...snapshot!.assessmentHeaders].sort((a, b) => a.ordinal - b.ordinal)
+
+  // A4 portrait printable width ≈ 210mm − 2×0.6in margins; large trials get their own map page.
+  const mapCell = fitCell(trial.plotCols, 210 - 2 * 15.24, 18, 44)
+  const bigTrial = snapshot!.plots.length > 24 || trial.plotCols > 6
 
   return (
     <div className="doc-page">
@@ -371,9 +446,9 @@ function SummaryDoc(): JSX.Element {
         </>
       )}
 
-      {/* Embedded field map */}
-      <h2 className="doc-break">Field map</h2>
-      <PlotGrid snapshot={snapshot!} colourBy="treatment" cell={44} />
+      {/* Embedded field map — fit to the portrait page; only push to a fresh page for big trials. */}
+      <h2 className={bigTrial ? 'doc-break' : ''}>Field map</h2>
+      <PlotGrid snapshot={snapshot!} colourBy="treatment" cell={mapCell} />
     </div>
   )
 }
@@ -417,6 +492,26 @@ function DataSheetDoc({ prefilled, hidden }: { prefilled: boolean; hidden: Set<n
     if (!vals.length) return ''
     const mean = vals.reduce((a, b) => a + b, 0) / vals.length
     return String(Math.round(mean * 100) / 100)
+  }
+  const subVal = (h: AssessmentHeader, plotId: number, s: number): string => {
+    const v = valueMap.get(`${h.id}:${plotId}:${s}`)
+    return v === null || v === undefined ? '' : String(v)
+  }
+  // One blank cell per single measurement; for subsample assessments, N stacked lines to record each.
+  const entryCell = (h: AssessmentHeader, plotId: number): JSX.Element => {
+    const n = subCountOf(h)
+    if (n === 1) return <td className="entry-cell">{prefilled ? meanFor(h, plotId) : ''}</td>
+    return (
+      <td className="entry-cell">
+        <div className="sub-cells">
+          {Array.from({ length: n }, (_, i) => (
+            <div key={i} className="sub-cell">
+              {prefilled ? subVal(h, plotId, i + 1) : ''}
+            </div>
+          ))}
+        </div>
+      </td>
+    )
   }
 
   const siteProps = snapshot!.properties.filter((p) => p.scope === 'trial')
@@ -475,9 +570,7 @@ function DataSheetDoc({ prefilled, hidden }: { prefilled: boolean; hidden: Set<n
                 <td className="num">{p.rep}</td>
                 <td>{trtName(p.treatmentId)}</td>
                 {headers.map((h) => (
-                  <td key={h.id} className="entry-cell">
-                    {prefilled ? meanFor(h, p.id!) : ''}
-                  </td>
+                  <Fragment key={h.id}>{entryCell(h, p.id!)}</Fragment>
                 ))}
               </tr>
             ))}
@@ -517,12 +610,19 @@ function PlotLabelsDoc({ stock }: { stock: LabelStock }): JSX.Element {
     fontSize: `${stock.font}px`
   }
 
+  const sheets = Math.max(1, Math.ceil(plots.length / stock.perSheet))
+
   return (
     <div className="doc-page labels-page">
       {/* Print-only page geometry so the labels land on the physical sheet. */}
       <style>{`@media print {
         @page { size: ${stock.page === 'a4' ? 'A4' : 'letter'}; margin: ${stock.marginTop}mm ${stock.marginLeft}mm; }
       }`}</style>
+      <p className="muted doc-foot no-print" style={{ marginTop: 0 }}>
+        {plots.length} labels · ~{sheets} sheet{sheets === 1 ? '' : 's'}. Test-print one sheet on plain
+        paper and check it against the stock before printing labels — printer scaling can shift
+        alignment by a millimetre or two.
+      </p>
       <div className="label-grid" style={gridStyle}>
         {plots.map((p) => {
           const t = treatment.get(p.treatmentId)
@@ -555,20 +655,27 @@ function SprayRecordDoc(): JSX.Element {
   const condsFor = (code: string): Property[] =>
     snapshot!.properties.filter((p) => p.scope === 'application' && p.scopeRef === code)
 
+  type Line = { number: number; name: string; product: string; rate: string }
+  const asLine = (t: { number: number; name: string }, l: { product: string; rate: string; rateUnit: string }): Line => ({
+    number: t.number,
+    name: t.name || `Treatment ${t.number}`,
+    product: l.product || '—',
+    rate: [l.rate, l.rateUnit].filter(Boolean).join(' ') || '—'
+  })
   // Treatment program lines that spray at a given timing code.
-  const linesAt = (code: string): { number: number; name: string; product: string; rate: string }[] => {
-    const out: { number: number; name: string; product: string; rate: string }[] = []
+  const linesAt = (code: string): Line[] => {
+    const out: Line[] = []
     for (const t of snapshot!.treatments)
-      for (const l of t.applications)
-        if (l.applicationRef === code)
-          out.push({
-            number: t.number,
-            name: t.name || `Treatment ${t.number}`,
-            product: l.product || '—',
-            rate: [l.rate, l.rateUnit].filter(Boolean).join(' ') || '—'
-          })
+      for (const l of t.applications) if (l.applicationRef === code) out.push(asLine(t, l))
     return out.sort((a, b) => a.number - b.number)
   }
+  // Program lines not tied to a defined application (blank or dangling ref) — otherwise invisible.
+  const codes = new Set(applications.map((a) => a.timingCode))
+  const unscheduled: Line[] = []
+  for (const t of snapshot!.treatments)
+    for (const l of t.applications)
+      if (!l.applicationRef || !codes.has(l.applicationRef)) unscheduled.push(asLine(t, l))
+  unscheduled.sort((a, b) => a.number - b.number)
 
   return (
     <div className="doc-page">
@@ -635,6 +742,35 @@ function SprayRecordDoc(): JSX.Element {
           </div>
         )
       })}
+
+      {unscheduled.length > 0 && (
+        <div className="spray-block">
+          <h2>Unscheduled / at planting</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Program lines not tied to a scheduled application (e.g. an at-planting treatment).
+          </p>
+          <table className="data">
+            <thead>
+              <tr>
+                <th style={{ width: 40 }}>#</th>
+                <th>Treatment</th>
+                <th>Product</th>
+                <th>Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {unscheduled.map((l, i) => (
+                <tr key={i}>
+                  <td className="num">{l.number}</td>
+                  <td>{l.name}</td>
+                  <td>{l.product}</td>
+                  <td>{l.rate}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

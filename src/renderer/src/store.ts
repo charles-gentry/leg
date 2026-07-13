@@ -16,6 +16,9 @@ export type ViewId =
 /** Which printable document the Documents view renders (selected from the Print menu). */
 export type DocKind = 'fieldmap' | 'labels' | 'datasheet' | 'spray' | 'summary'
 
+/** How the field map / embedded map colours its plots. */
+export type DocColourBy = 'none' | 'treatment' | 'rep' | 'block'
+
 interface AppState {
   snapshot: ProjectSnapshot | null
   view: ViewId
@@ -33,10 +36,24 @@ interface AppState {
 
   /** The printable document currently selected for the Documents view. */
   docKind: DocKind
+  /** View to return to from a document (whatever was active when Print was chosen). */
+  returnView: ViewId
+  /** Document toolbar selections, kept here so they persist across visits to the Documents view. */
+  docColourBy: DocColourBy
+  docStockId: string
+  docPrefilled: boolean
+  /** Assessment header ids hidden from the data sheet. */
+  docHiddenCols: number[]
 
   toggleSidebar: () => void
   setView: (v: ViewId) => void
   setDocKind: (k: DocKind) => void
+  /** Navigate to a printable document, remembering the current view to return to. */
+  goToDocument: (k: DocKind) => void
+  setDocColourBy: (c: DocColourBy) => void
+  setDocStockId: (id: string) => void
+  setDocPrefilled: (v: boolean) => void
+  setDocHiddenCols: (ids: number[]) => void
   setSnapshot: (s: ProjectSnapshot | null) => void
   setREnv: (s: REnvStatus | null) => void
   setError: (e: string | null) => void
@@ -61,6 +78,11 @@ export const useStore = create<AppState>((set) => ({
   sidebarOpen: localStorage.getItem('sidebarOpen') !== 'false',
   aovResults: {},
   docKind: 'fieldmap',
+  returnView: 'trialmap',
+  docColourBy: 'treatment',
+  docStockId: '',
+  docPrefilled: false,
+  docHiddenCols: [],
 
   toggleSidebar: () =>
     set((state) => {
@@ -70,6 +92,17 @@ export const useStore = create<AppState>((set) => ({
     }),
   setView: (view) => set({ view }),
   setDocKind: (docKind) => set({ docKind }),
+  goToDocument: (docKind) =>
+    set((state) => ({
+      docKind,
+      view: 'documents',
+      // Remember where we came from, but never "return" to the documents view itself.
+      returnView: state.view === 'documents' ? state.returnView : state.view
+    })),
+  setDocColourBy: (docColourBy) => set({ docColourBy }),
+  setDocStockId: (docStockId) => set({ docStockId }),
+  setDocPrefilled: (docPrefilled) => set({ docPrefilled }),
+  setDocHiddenCols: (docHiddenCols) => set({ docHiddenCols }),
   setSnapshot: (snapshot) =>
     set((state) => {
       // Drop cached ANOVA results when switching to a different file.

@@ -514,13 +514,28 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   // --- Report ---
   handle(IPC.reportExportPdf, async (opts: unknown): Promise<string | null> => {
-    const { title } = z.object({ title: z.string().default('') }).parse(opts ?? {})
+    const { title, print } = z
+      .object({
+        title: z.string().default(''),
+        // Per-document print geometry; omitted → report defaults (A4, portrait, header on).
+        print: z
+          .object({
+            pageSize: z.enum(['A4', 'Letter']).optional(),
+            landscape: z.boolean().optional(),
+            margins: z
+              .object({ top: z.number(), bottom: z.number(), left: z.number(), right: z.number() })
+              .optional(),
+            header: z.boolean().optional()
+          })
+          .optional()
+      })
+      .parse(opts ?? {})
     const win = getWindow()
     if (!win) throw new Error('No window to export from.')
 
     const res = await dialog.showSaveDialog(win, {
-      title: 'Export Report PDF',
-      defaultPath: `${(title || 'trial').replace(/[^\w.-]+/g, '_')}-report.pdf`,
+      title: 'Export PDF',
+      defaultPath: `${(title || 'trial').replace(/[^\w.-]+/g, '_')}.pdf`,
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
     })
     if (res.canceled || !res.filePath) return null
@@ -528,13 +543,20 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const esc = (s: string): string =>
       s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
     const margin = '<div style="font-size:8px; width:100%; padding:0 12mm; color:#666;">'
+    const showHeader = print?.header ?? true
     const data = await win.webContents.printToPDF({
-      pageSize: 'A4',
+      pageSize: print?.pageSize ?? 'A4',
+      landscape: print?.landscape ?? false,
       printBackground: true,
-      displayHeaderFooter: true,
-      margins: { top: 0.7, bottom: 0.7, left: 0.6, right: 0.6 }, // inches; non-zero so templates show
-      headerTemplate: `${margin}${esc(title)}</div>`,
-      footerTemplate: `${margin.replace('color:#666;', 'color:#666; display:flex; justify-content:space-between;')}<span>ART</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+      displayHeaderFooter: showHeader,
+      // inches; the report's defaults leave room for the header/footer templates.
+      margins: print?.margins ?? { top: 0.7, bottom: 0.7, left: 0.6, right: 0.6 },
+      ...(showHeader
+        ? {
+            headerTemplate: `${margin}${esc(title)}</div>`,
+            footerTemplate: `${margin.replace('color:#666;', 'color:#666; display:flex; justify-content:space-between;')}<span>ART</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`
+          }
+        : {})
     })
     await writeFile(res.filePath, data)
     shell.openPath(res.filePath)

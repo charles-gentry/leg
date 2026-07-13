@@ -825,6 +825,23 @@ td.fill-line {
 table.datasheet .entry-cell {
   height: 28px;
   min-width: 66px;
+  vertical-align: top;
+}
+/* Subsample assessments get one blank line per subsample to record each measurement. */
+table.datasheet td.entry-cell:has(.sub-cells) {
+  padding: 0;
+}
+table.datasheet .sub-cells {
+  display: flex;
+  flex-direction: column;
+}
+table.datasheet .sub-cell {
+  height: 24px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+table.datasheet .sub-cell:not(:last-child) {
+  border-bottom: 1px dashed var(--border);
 }
 
 /* Plot label / sign sheet: an N-up grid of bordered labels sized to physical stock (widths,

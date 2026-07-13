@@ -17,6 +17,7 @@ import type {
   PersonalTerm,
   SuggestHit,
   ProjectSnapshot,
+  PrintProfile,
   REnvStatus,
   SiteMetadata
 } from '../shared/types.js'
@@ -95,7 +96,7 @@ const api = {
       ipcRenderer.invoke(IPC.statsRunAov, headerId, req)
   },
   report: {
-    exportPdf: (opts: { title: string }): Promise<string | null> =>
+    exportPdf: (opts: { title: string; print?: PrintProfile }): Promise<string | null> =>
       ipcRenderer.invoke(IPC.reportExportPdf, opts)
   },
   audit: {

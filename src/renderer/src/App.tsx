@@ -109,7 +109,7 @@ function Welcome(): JSX.Element {
 }
 
 export default function App(): JSX.Element {
-  const { snapshot, view, setView, setDocKind, setSnapshot, setREnv, busy, error, setError, notice, setNotice, saved, run, sidebarOpen, toggleSidebar } =
+  const { snapshot, view, setView, goToDocument, setSnapshot, setREnv, busy, error, setError, notice, setNotice, saved, run, sidebarOpen, toggleSidebar } =
     useStore()
 
   // Pick a sensible starting view for a freshly opened/created document.
@@ -166,11 +166,11 @@ export default function App(): JSX.Element {
         case 'view.library': setView('library'); break
         case 'view.audit': setView('audit'); break
         case 'print.report': setView('report'); break
-        case 'print.fieldmap': setDocKind('fieldmap'); setView('documents'); break
-        case 'print.labels': setDocKind('labels'); setView('documents'); break
-        case 'print.datasheet': setDocKind('datasheet'); setView('documents'); break
-        case 'print.spray': setDocKind('spray'); setView('documents'); break
-        case 'print.summary': setDocKind('summary'); setView('documents'); break
+        case 'print.fieldmap': goToDocument('fieldmap'); break
+        case 'print.labels': goToDocument('labels'); break
+        case 'print.datasheet': goToDocument('datasheet'); break
+        case 'print.spray': goToDocument('spray'); break
+        case 'print.summary': goToDocument('summary'); break
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps

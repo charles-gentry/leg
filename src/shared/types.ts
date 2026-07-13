@@ -408,6 +408,21 @@ export interface ProjectSnapshot {
   libraryTerms: LibraryTerm[]
 }
 
+/**
+ * Per-document print geometry passed to the PDF export. Electron's `printToPDF` options override CSS
+ * `@page`, so each printable document supplies its own page size, orientation, margins, and whether
+ * the running "ART / page-number" header+footer should show (wanted on the report, not on a field
+ * map or a label sheet). Omitted fields fall back to the report defaults (A4, portrait, header on).
+ */
+export interface PrintProfile {
+  pageSize?: 'A4' | 'Letter'
+  landscape?: boolean
+  /** Page margins in inches. */
+  margins?: { top: number; bottom: number; left: number; right: number }
+  /** Show the ART title header + page-number footer (default true). */
+  header?: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Audit trail (GEP/GLP)
 // ---------------------------------------------------------------------------
