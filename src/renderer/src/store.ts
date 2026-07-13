@@ -14,7 +14,7 @@ export type ViewId =
   | 'audit'
 
 /** Which printable document the Documents view renders (selected from the Print menu). */
-export type DocKind = 'fieldmap' | 'summary'
+export type DocKind = 'fieldmap' | 'labels' | 'datasheet' | 'spray' | 'summary'
 
 interface AppState {
   snapshot: ProjectSnapshot | null

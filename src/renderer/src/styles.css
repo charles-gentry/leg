@@ -763,6 +763,14 @@ select:disabled {
   .trialmap {
     break-inside: avoid;
   }
+  /* A data-collection sheet can be long — let it flow across pages (thead repeats via
+     table-header-group above), overriding the blanket table break-inside:avoid. */
+  table.datasheet {
+    break-inside: auto;
+  }
+  table.datasheet tr {
+    break-inside: avoid;
+  }
 }
 
 /* Report document title block (also used lightly on screen). */
@@ -805,6 +813,65 @@ select:disabled {
 .doc-foot {
   margin-top: 12px;
   font-size: 12px;
+}
+
+/* Blank line to write on (data-sheet / spray-record fields left for the field). */
+td.fill-line {
+  min-width: 150px;
+  border-bottom: 1px solid #999;
+}
+
+/* Data-collection sheet: tall blank cells for hand-recorded values. */
+table.datasheet .entry-cell {
+  height: 28px;
+  min-width: 66px;
+}
+
+/* Plot label / sign sheet: an N-up grid of bordered labels sized to physical stock (widths,
+   heights and gaps come from inline styles set by the chosen preset). */
+.label-grid {
+  display: grid;
+  justify-content: start;
+}
+.plot-label {
+  border: 1px solid var(--text);
+  border-radius: 4px;
+  padding: 2mm 3mm;
+  overflow: hidden;
+  break-inside: avoid;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.15;
+}
+.plot-label .pl-trial {
+  font-size: 0.8em;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plot-label .pl-plot {
+  font-size: 2em;
+  font-weight: 700;
+}
+.plot-label .pl-meta {
+  font-size: 0.95em;
+  color: var(--muted);
+}
+.plot-label .pl-trt {
+  font-size: 1.05em;
+  font-weight: 600;
+}
+
+/* Spray record: one self-contained block per application. */
+.spray-block {
+  break-inside: avoid;
+  margin-bottom: 18px;
 }
 
 /* Layout lock + plot exclusion */

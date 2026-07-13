@@ -550,8 +550,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     // Library/Audit views only render with a document open.
     setMenuEnabled('nav-library', hasDocument)
     setMenuEnabled('nav-audit', hasDocument)
-    // Printable documents (Field Map / Summary / Report) require a trial.
-    for (const id of ['print-fieldmap', 'print-summary', 'print-report'])
+    // Printable documents require a trial.
+    for (const id of [
+      'print-fieldmap',
+      'print-labels',
+      'print-datasheet',
+      'print-spray',
+      'print-summary',
+      'print-report'
+    ])
       setMenuEnabled(id, role === 'trial')
     return true
   })

@@ -167,6 +167,9 @@ export default function App(): JSX.Element {
         case 'view.audit': setView('audit'); break
         case 'print.report': setView('report'); break
         case 'print.fieldmap': setDocKind('fieldmap'); setView('documents'); break
+        case 'print.labels': setDocKind('labels'); setView('documents'); break
+        case 'print.datasheet': setDocKind('datasheet'); setView('documents'); break
+        case 'print.spray': setDocKind('spray'); setView('documents'); break
         case 'print.summary': setDocKind('summary'); setView('documents'); break
       }
     })

@@ -59,6 +59,10 @@ export function buildMenu(win: BrowserWindow): Menu {
         // Printable documents are a utility (not a workflow step), reached from this top-level menu.
         // Each navigates to its print-ready view; enabled once a trial is open.
         { id: 'print-fieldmap', label: 'Field Map', enabled: false, click: send('print.fieldmap') },
+        { id: 'print-labels', label: 'Plot Labels', enabled: false, click: send('print.labels') },
+        { id: 'print-datasheet', label: 'Data Collection Sheets', enabled: false, click: send('print.datasheet') },
+        { id: 'print-spray', label: 'Spray Record', enabled: false, click: send('print.spray') },
+        { type: 'separator' },
         { id: 'print-summary', label: 'Trial Summary', enabled: false, click: send('print.summary') },
         { id: 'print-report', label: 'Report', enabled: false, click: send('print.report') }
       ]

@@ -41,10 +41,12 @@ statistics engine (via the [`agricolae`](https://cran.r-project.org/package=agri
 - **Report** — protocol summary, treatment-means table, and a bar chart with error bars
   (Vega-Lite); export means to CSV or print/save the report as PDF.
 - **Printable documents** — a top-level **Print** menu produces field-ready printouts from the
-  trial: a large **field map** (colour-by treatment/rep/block), a one-page **trial summary**
-  (metadata, site details, treatments & rates, application schedule with actual dates, assessment
-  plan, and an embedded field map), and the **report**. Each renders clean via print CSS and exports
-  to PDF.
+  trial: a large **field map** (colour-by treatment/rep/block), **plot labels/signs** (N-up, two
+  sizes), **data-collection sheets** (plots in field order × assessment columns, blank or
+  pre-filled, with a metadata header), a **spray record** (per application: treatments & rates,
+  actual date, target/actual growth stage, condition properties), a one-page **trial summary**
+  (metadata, site details, treatments & rates, application schedule, assessment plan, embedded field
+  map), and the **report**. Each renders clean via print CSS and exports to PDF.
 
 ## Prerequisites
 
