@@ -117,6 +117,7 @@ export function listTreatments(db: Database.Database = getDb()): Treatment[] {
     number: r.number as number,
     name: r.name as string,
     type: r.type as string,
+    isCheck: !!(r.is_check as number),
     applications: linesByTrt.get(r.id as number) ?? []
   }))
 }
@@ -128,13 +129,15 @@ export function listTreatments(db: Database.Database = getDb()): Treatment[] {
 export function replaceTreatments(treatments: Treatment[], db: Database.Database = getDb()): void {
   const tx = db.transaction((items: Treatment[]) => {
     db.prepare('DELETE FROM treatment').run() // cascades to treatment_application
-    const insT = db.prepare(`INSERT INTO treatment (number, name, type) VALUES (@number, @name, @type)`)
+    const insT = db.prepare(
+      `INSERT INTO treatment (number, name, type, is_check) VALUES (@number, @name, @type, @isCheck)`
+    )
     const insL = db.prepare(
       `INSERT INTO treatment_application (treatment_id, ordinal, application_ref, product, rate, rate_unit)
        VALUES (@treatmentId, @ordinal, @applicationRef, @product, @rate, @rateUnit)`
     )
     for (const t of items) {
-      const info = insT.run({ number: t.number, name: t.name, type: t.type })
+      const info = insT.run({ number: t.number, name: t.name, type: t.type, isCheck: t.isCheck ? 1 : 0 })
       const treatmentId = info.lastInsertRowid as number
       ;(t.applications ?? []).forEach((l, i) =>
         insL.run({
@@ -250,7 +253,8 @@ export function listMeasurementDefs(db: Database.Database = getDb()): Measuremen
     description: r.description as string,
     ordinal: r.ordinal as number,
     analyze: !!(r.analyze as number),
-    subsamples: (r.subsamples as number) ?? 1
+    subsamples: (r.subsamples as number) ?? 1,
+    formula: (r.formula as string) ?? ''
   }))
 }
 
@@ -258,8 +262,8 @@ export function replaceMeasurementDefs(defs: MeasurementDef[], db: Database.Data
   const tx = db.transaction((items: MeasurementDef[]) => {
     db.prepare('DELETE FROM measurement_def').run()
     const ins = db.prepare(
-      `INSERT INTO measurement_def (part_measured, measurement_type, measurement_unit, application_ref, days_after, timing, description, ordinal, analyze, subsamples)
-       VALUES (@partMeasured, @measurementType, @measurementUnit, @applicationRef, @daysAfter, @timing, @description, @ordinal, @analyze, @subsamples)`
+      `INSERT INTO measurement_def (part_measured, measurement_type, measurement_unit, application_ref, days_after, timing, description, ordinal, analyze, subsamples, formula)
+       VALUES (@partMeasured, @measurementType, @measurementUnit, @applicationRef, @daysAfter, @timing, @description, @ordinal, @analyze, @subsamples, @formula)`
     )
     items.forEach((d, i) =>
       ins.run({
@@ -268,7 +272,8 @@ export function replaceMeasurementDefs(defs: MeasurementDef[], db: Database.Data
         daysAfter: d.daysAfter ?? null,
         ordinal: d.ordinal ?? i,
         analyze: d.analyze === false ? 0 : 1,
-        subsamples: d.subsamples ?? 1
+        subsamples: d.subsamples ?? 1,
+        formula: d.formula ?? ''
       })
     )
   })
@@ -505,6 +510,7 @@ function mapHeaderRow(r: Record<string, unknown>): MeasurementHeader {
     locked: !!(r.locked as number),
     analyze: !!(r.analyze as number),
     subsamples: (r.subsamples as number) ?? 1,
+    formula: (r.formula as string) ?? '',
     // Event metadata (recorded at data entry):
     measurementDate: (r.measurement_date as string) ?? '',
     assessedBy: (r.assessed_by as string) ?? '',
@@ -522,6 +528,7 @@ export function upsertMeasurementHeader(
     subsamples: h.subsamples ?? 1,
     applicationRef: h.applicationRef ?? '',
     daysAfter: h.daysAfter ?? null,
+    formula: h.formula ?? '',
     measurementDate: h.measurementDate ?? '',
     assessedBy: h.assessedBy ?? '',
     growthStage: h.growthStage ?? ''
@@ -531,15 +538,15 @@ export function upsertMeasurementHeader(
       `UPDATE measurement_header SET part_measured=@partMeasured, measurement_type=@measurementType,
         measurement_unit=@measurementUnit, application_ref=@applicationRef, days_after=@daysAfter,
         timing=@timing, description=@description, ordinal=@ordinal, origin=@origin, locked=@locked,
-        analyze=@analyze, subsamples=@subsamples,
+        analyze=@analyze, subsamples=@subsamples, formula=@formula,
         measurement_date=@measurementDate, assessed_by=@assessedBy, growth_stage=@growthStage WHERE id=@id`
     ).run({ ...h, ...extra })
     return h.id
   }
   const info = db
     .prepare(
-      `INSERT INTO measurement_header (trial_id, part_measured, measurement_type, measurement_unit, application_ref, days_after, timing, description, ordinal, origin, locked, analyze, subsamples, measurement_date, assessed_by, growth_stage)
-       VALUES (@trialId, @partMeasured, @measurementType, @measurementUnit, @applicationRef, @daysAfter, @timing, @description, @ordinal, @origin, @locked, @analyze, @subsamples, @measurementDate, @assessedBy, @growthStage)`
+      `INSERT INTO measurement_header (trial_id, part_measured, measurement_type, measurement_unit, application_ref, days_after, timing, description, ordinal, origin, locked, analyze, subsamples, formula, measurement_date, assessed_by, growth_stage)
+       VALUES (@trialId, @partMeasured, @measurementType, @measurementUnit, @applicationRef, @daysAfter, @timing, @description, @ordinal, @origin, @locked, @analyze, @subsamples, @formula, @measurementDate, @assessedBy, @growthStage)`
     )
     .run({ ...h, origin: h.origin ?? 'site', ...extra })
   return info.lastInsertRowid as number
@@ -721,6 +728,7 @@ export function materializeCoreHeaders(trialId: number, db: Database.Database = 
         locked: true,
         analyze: d.analyze,
         subsamples: d.subsamples ?? 1,
+        formula: d.formula ?? '',
         // Event metadata (date / assessor / growth stage) is captured at data entry, not here.
         measurementDate: '',
         assessedBy: '',

@@ -25,6 +25,11 @@ statistics engine (via the [`agricolae`](https://cran.r-project.org/package=agri
   paste-from-clipboard support. Each measurement also captures event metadata at data-entry time — the
   date performed, who performed it, and the crop growth stage observed — kept separate from the
   protocol definition and surfaced on the report alongside that measurement's results.
+- **Calculated measurements** — a measurement column can carry a formula instead of hand-entered
+  values; its per-plot value is derived from other measurements referenced by column number
+  (`([1]+[2])/2`), with functions (`min/max/abs/round/sqrt`) and `control([n])` / `abbott([n])` for
+  **% of untreated control** (mark a treatment as the untreated check). Derived values are read-only
+  in the grid and feed ANOVA, the report, and the printed documents like any measurement.
 - **Site details & application conditions** — a generic key/value property editor records ad-hoc
   metadata (soil type, previous crop, weather at spraying, …) against the trial site or a specific
   application, with keys accreting into the coded-field library rather than a fixed wall of columns.
