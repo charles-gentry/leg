@@ -56,7 +56,7 @@ describe('treatments', () => {
       { number: 2, name: 'Product B' },
       { number: 1, name: 'Untreated' },
       { number: 3, name: 'Product C' }
-    ].map((t) => ({ ...t, type: '', applications: [] }))
+    ].map((t) => ({ ...t, type: '', isCheck: false, applications: [] }))
     dao.replaceTreatments(list)
     const back = dao.listTreatments()
     expect(back.map((t) => t.number)).toEqual([1, 2, 3])
@@ -67,7 +67,7 @@ describe('treatments', () => {
 describe('trial + plots + measurements', () => {
   function seedTrial(): { headerId: number; plots: Plot[] } {
     dao.replaceTreatments(
-      [1, 2, 3].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
+      [1, 2, 3].map((n) => ({ number: n, name: `T${n}`, type: '', isCheck: false, applications: [] }))
     )
     const treatments = dao.listTreatments()
     dao.saveProtocol({ ...dao.getProtocol(), design: 'RCB', replicates: 2 })
@@ -97,7 +97,7 @@ describe('trial + plots + measurements', () => {
       applicationRef: '',
       daysAfter: null,
       timing: '14 DA-A',
-      growthStage: '',
+      formula: '', growthStage: '',
       measurementDate: '',
       assessedBy: '',
       description: 'Control',
@@ -112,7 +112,7 @@ describe('trial + plots + measurements', () => {
 
   it('defaults plot.block to the rep, and round-trips an explicit incomplete block', () => {
     dao.replaceTreatments(
-      [1, 2, 3, 4].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
+      [1, 2, 3, 4].map((n) => ({ number: n, name: `T${n}`, type: '', isCheck: false, applications: [] }))
     )
     const t = dao.listTreatments()
     // Two treatments per incomplete block (block size 2), one replicate: blocks 1 and 2.
@@ -207,8 +207,8 @@ describe('trial + plots + measurements', () => {
 describe('measurement definitions', () => {
   it('replaces and lists protocol-owned measurement defs', () => {
     const defs: MeasurementDef[] = [
-      { partMeasured: 'PLANT', measurementType: 'CONTRO', measurementUnit: '%', applicationRef: '', daysAfter: null, timing: '7 DA-A', description: 'Control 7', ordinal: 0, analyze: true, subsamples: 5 },
-      { partMeasured: 'PLANT', measurementType: 'NOTE', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', description: 'Notes', ordinal: 1, analyze: false, subsamples: 1 }
+      { partMeasured: 'PLANT', measurementType: 'CONTRO', measurementUnit: '%', applicationRef: '', daysAfter: null, timing: '7 DA-A', description: 'Control 7', ordinal: 0, analyze: true, subsamples: 5, formula: '' },
+      { partMeasured: 'PLANT', measurementType: 'NOTE', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', description: 'Notes', ordinal: 1, analyze: false, subsamples: 1, formula: '' }
     ]
     dao.replaceMeasurementDefs(defs)
     const back = dao.listMeasurementDefs()
@@ -226,10 +226,10 @@ describe('protocol → trial', () => {
     openProject(path, { role: 'protocol', create: true })
     dao.saveProtocol({ ...dao.getProtocol(), title: 'Rust Trial', design: 'CRD', replicates: 3 })
     dao.replaceTreatments(
-      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
+      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', isCheck: false, applications: [] }))
     )
     dao.replaceMeasurementDefs([
-      { partMeasured: 'PLANT', measurementType: 'CONTRO', measurementUnit: '%', applicationRef: '', daysAfter: null, timing: '14 DA-A', description: 'Control', ordinal: 0, analyze: false, subsamples: 4 }
+      { partMeasured: 'PLANT', measurementType: 'CONTRO', measurementUnit: '%', applicationRef: '', daysAfter: null, timing: '14 DA-A', description: 'Control', ordinal: 0, analyze: false, subsamples: 4, formula: '' }
     ])
     const uid = dao.getProtocol().protocolUid
     closeProject()
@@ -295,7 +295,7 @@ describe('protocol → trial', () => {
       applicationRef: '',
       daysAfter: null,
       timing: '',
-      growthStage: '',
+      formula: '', growthStage: '',
       measurementDate: '',
       assessedBy: '',
       description: 'Site column',
@@ -312,7 +312,7 @@ describe('protocol → trial', () => {
 describe('layout lock + plot exclusion', () => {
   function makeTrial(): number {
     dao.replaceTreatments(
-      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', applications: [] }))
+      [1, 2].map((n) => ({ number: n, name: `T${n}`, type: '', isCheck: false, applications: [] }))
     )
     const t = dao.listTreatments()
     return dao.replaceTrialWithPlots({ protocolId: 1, plotRows: 1, plotCols: 2, seed: 1, ...SITE }, [
@@ -359,11 +359,11 @@ describe('applications', () => {
     expect(dao.listApplications()[0].targetGrowthStage).toBe('BBCH 30')
     // A treatment is a program: a sequence of application lines, each with its own product/rate/timing.
     dao.replaceTreatments([
-      { number: 1, name: 'Untreated', type: '', applications: [] },
+      { number: 1, name: 'Untreated', type: '', isCheck: false, applications: [] },
       {
         number: 2,
         name: 'Program',
-        type: '',
+        type: '', isCheck: false,
         applications: [
           { ordinal: 0, applicationRef: 'A', product: 'Fungicide X', rate: '1', rateUnit: 'L/HA' },
           { ordinal: 1, applicationRef: 'B', product: 'Fungicide Y', rate: '0.5', rateUnit: 'L/HA' }

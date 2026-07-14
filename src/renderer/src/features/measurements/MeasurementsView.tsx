@@ -3,6 +3,7 @@ import { useStore } from '../../store'
 import { Combobox } from '../../components/Combobox'
 import { TimingField } from '../../components/TimingField'
 import { timingLabel } from '@shared/timing'
+import { parseFormula } from '@shared/formula'
 import type { MeasurementHeader } from '@shared/types'
 
 export function MeasurementsView(): JSX.Element {
@@ -39,8 +40,12 @@ function HeaderManager({
     daysAfter: null as number | null,
     timing: '',
     analyze: true,
-    subsamples: 1
+    subsamples: 1,
+    formula: ''
   })
+  const calc = draft.formula.trim().length > 0
+  const parsed = calc ? parseFormula(draft.formula) : null
+  const formulaError = parsed && !parsed.ok ? parsed.error : null
 
   const add = (): void => {
     run('Adding measurement', async () => {
@@ -59,7 +64,8 @@ function HeaderManager({
         origin: 'site',
         locked: false,
         analyze: draft.analyze,
-        subsamples: Math.max(1, draft.subsamples || 1),
+        subsamples: calc ? 1 : Math.max(1, draft.subsamples || 1),
+        formula: calc ? draft.formula.trim() : '',
         // Event metadata (date / assessor / growth stage) is recorded later at data entry.
         measurementDate: '',
         assessedBy: '',
@@ -68,7 +74,7 @@ function HeaderManager({
       // Refetch so the new coded terms surface in library suggestions/labels.
       const s = await window.art.project.snapshot()
       setSnapshot(s ?? { ...snapshot!, measurementHeaders: next })
-      setDraft({ partMeasured: '', measurementType: '', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', analyze: true, subsamples: 1 })
+      setDraft({ partMeasured: '', measurementType: '', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', analyze: true, subsamples: 1, formula: '' })
     })
   }
 
@@ -123,12 +129,21 @@ function HeaderManager({
                     <span className="tag site">site</span>
                   )}
                 </td>
-                <td>{h.measurementType || '—'}</td>
+                <td>
+                  {h.measurementType || '—'}
+                  {h.formula && (
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      ƒ {h.formula}
+                    </div>
+                  )}
+                </td>
                 <td>{h.partMeasured || '—'}</td>
                 <td>{h.measurementUnit || '—'}</td>
                 <td>{timingLabel(h) || '—'}</td>
                 <td className="num">
-                  {h.origin === 'core' ? (
+                  {h.formula ? (
+                    '—'
+                  ) : h.origin === 'core' ? (
                     h.subsamples ?? 1
                   ) : (
                     <input
@@ -207,7 +222,17 @@ function HeaderManager({
             min={1}
             max={50}
             value={draft.subsamples}
+            disabled={calc}
+            title={calc ? 'Calculated columns have no subsamples' : undefined}
             onChange={(e) => setDraft({ ...draft, subsamples: Number(e.target.value) })}
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label>Formula (optional → calculated)</label>
+          <input
+            value={draft.formula}
+            placeholder="e.g. abbott([1])  or  ([1]+[2])/2"
+            onChange={(e) => setDraft({ ...draft, formula: e.target.value })}
           />
         </div>
         <label className="checkbox-inline">
@@ -218,10 +243,23 @@ function HeaderManager({
           />
           Analyze
         </label>
-        <button className="primary" onClick={add}>
+        <button className="primary" onClick={add} disabled={!!formulaError}>
           + Add column
         </button>
       </div>
+      {calc && (
+        <div style={{ marginTop: 6, fontSize: 12 }}>
+          {formulaError ? (
+            <span style={{ color: '#b00020' }}>⚠ {formulaError}</span>
+          ) : (
+            <span className="muted">
+              Reference measurements by column number —{' '}
+              {headers.map((h, i) => `[${i + 1}] ${h.description || h.measurementType || 'Measurement'}`).join('   ')}
+              . Use control([n]) or abbott([n]) for % of untreated control.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

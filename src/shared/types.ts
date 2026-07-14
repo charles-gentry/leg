@@ -153,6 +153,8 @@ export const Treatment = z.object({
   number: z.number().int().positive(),
   name: z.string().default(''),
   type: z.string().default(''),
+  /** Marks the untreated check used by calculated measurements' `control()` / % control. */
+  isCheck: z.boolean().default(false),
   applications: z.array(TreatmentApplication).default([])
 })
 export type Treatment = z.infer<typeof Treatment>
@@ -264,7 +266,13 @@ export const MeasurementDef = z.object({
   /** Whether this measurement is included in ANOVA and the report. */
   analyze: z.boolean().default(true),
   /** Measurements recorded per plot; >1 are averaged to the plot value before ANOVA. */
-  subsamples: z.number().int().min(1).max(50).default(1)
+  subsamples: z.number().int().min(1).max(50).default(1),
+  /**
+   * When non-empty, this is a *calculated* measurement: its per-plot value is derived from this
+   * formula rather than hand-entered. Formulas reference other measurements by 1-based column number
+   * (`[1]`, `[2]`, …) and may use `control([n])` / `abbott([n])` for % of untreated control.
+   */
+  formula: z.string().default('')
 })
 export type MeasurementDef = z.infer<typeof MeasurementDef>
 

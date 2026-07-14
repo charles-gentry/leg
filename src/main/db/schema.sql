@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS treatment (
   rate      TEXT NOT NULL DEFAULT '',
   rate_unit TEXT NOT NULL DEFAULT '',
   type      TEXT NOT NULL DEFAULT '',
+  is_check  INTEGER NOT NULL DEFAULT 0, -- untreated check (for calculated measurements' % control)
   UNIQUE (number)
 );
 
@@ -118,7 +119,8 @@ CREATE TABLE IF NOT EXISTS measurement_def (
   description TEXT NOT NULL DEFAULT '',
   ordinal     INTEGER NOT NULL DEFAULT 0,
   analyze     INTEGER NOT NULL DEFAULT 1, -- include in ANOVA / report
-  subsamples  INTEGER NOT NULL DEFAULT 1  -- measurements recorded per plot (>1 = averaged)
+  subsamples  INTEGER NOT NULL DEFAULT 1, -- measurements recorded per plot (>1 = averaged)
+  formula     TEXT NOT NULL DEFAULT ''    -- non-empty = calculated column (derived from other measurements)
 );
 
 -- The local trial instance. design/replicates/plot dimensions live on the protocol;
@@ -173,6 +175,7 @@ CREATE TABLE IF NOT EXISTS measurement_header (
   locked      INTEGER NOT NULL DEFAULT 0,
   analyze     INTEGER NOT NULL DEFAULT 1, -- include in ANOVA / report
   subsamples  INTEGER NOT NULL DEFAULT 1, -- measurements recorded per plot (>1 = averaged)
+  formula     TEXT NOT NULL DEFAULT '',  -- non-empty = calculated column (derived from other measurements)
   -- Event metadata, recorded at data entry (not authoring):
   measurement_date  TEXT NOT NULL DEFAULT '',   -- date the measurement was performed
   assessed_by  TEXT NOT NULL DEFAULT '',   -- who performed it

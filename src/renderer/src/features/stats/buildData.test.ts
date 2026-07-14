@@ -13,6 +13,7 @@ function snap(): ProjectSnapshot {
       { id: 10, number: 1, name: 'A', product: '', rate: '', rateUnit: '', type: '' },
       { id: 11, number: 2, name: 'B', product: '', rate: '', rateUnit: '', type: '' }
     ],
+    measurementHeaders: [{ id: 5, ordinal: 0, formula: '' }],
     measurementValues: [
       { measurementHeaderId: 5, plotId: 1, subsample: 1, value: 3 },
       { measurementHeaderId: 5, plotId: 2, subsample: 1, value: 9 }
@@ -37,6 +38,7 @@ describe('buildObservations', () => {
         { id: 10, number: 1, name: 'A', product: '', rate: '', rateUnit: '', type: '' },
         { id: 11, number: 2, name: 'B', product: '', rate: '', rateUnit: '', type: '' }
       ],
+      measurementHeaders: [{ id: 5, ordinal: 0, formula: '' }],
       measurementValues: [
         { measurementHeaderId: 5, plotId: 1, subsample: 1, value: 2 },
         { measurementHeaderId: 5, plotId: 1, subsample: 2, value: 4 },

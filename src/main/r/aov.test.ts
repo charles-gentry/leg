@@ -67,6 +67,22 @@ describe.skipIf(!hasEngine)('aov.R', () => {
     expect(res.result!.means).toHaveLength(0)
   })
 
+  it('returns a clear "no variation" note when every observation is identical', async () => {
+    // Mirrors a calculated % control column when the source data are uniform: all values equal.
+    const data: Obs = []
+    for (let t = 1; t <= 4; t++)
+      for (let rep = 1; rep <= 4; rep++) data.push({ treatment: t, rep, block: rep, value: 0 })
+    const res = await runRScript<AovRequest, AovResult>('aov.R', {
+      design: 'RCB',
+      test: 'LSD',
+      alpha: 0.05,
+      data
+    })
+    expect(res.ok).toBe(true)
+    expect(res.result!.means).toHaveLength(0)
+    expect(res.result!.note).toMatch(/identical|no variation/i)
+  })
+
   it('produces block-adjusted means (PBIB) for a valid alpha design', async () => {
     // Build a real resolvable alpha layout (t=9, k=3, r=3) via the randomizer, then attach a
     // clear treatment effect and confirm the block-adjusted analysis recovers it.

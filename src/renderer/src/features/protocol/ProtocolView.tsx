@@ -5,6 +5,7 @@ import { TimingField } from '../../components/TimingField'
 import { ApplicationsEditor } from './ApplicationsEditor'
 import { TreatmentProgram, programSummary } from './TreatmentProgram'
 import { timingLabel } from '@shared/timing'
+import { parseFormula } from '@shared/formula'
 import { validateDesign } from '@shared/design'
 import type { Protocol, Treatment, MeasurementDef, DesignType, LibraryCategory } from '@shared/types'
 
@@ -111,7 +112,13 @@ export function ProtocolView(): JSX.Element {
     const number = treatments.length ? Math.max(...treatments.map((t) => t.number)) + 1 : 1
     saveTreatments([
       ...treatments,
-      { number, name: number === 1 ? 'Untreated Check' : '', type: '', applications: [] }
+      {
+        number,
+        name: number === 1 ? 'Untreated Check' : '',
+        type: '',
+        isCheck: number === 1,
+        applications: []
+      }
     ])
   }
 
@@ -249,6 +256,9 @@ export function ProtocolView(): JSX.Element {
               <th style={{ width: 40 }}>#</th>
               <th style={{ width: 200 }}>Name</th>
               <th>Program</th>
+              <th style={{ width: 60 }} title="Untreated check — used by % control formulas">
+                Check
+              </th>
               {!readOnly && <th style={{ width: 40 }}></th>}
             </tr>
           </thead>
@@ -281,6 +291,21 @@ export function ProtocolView(): JSX.Element {
                   >
                     {programSummary(t)}
                   </td>
+                  <td className="num">
+                    <input
+                      type="checkbox"
+                      disabled={readOnly}
+                      checked={!!t.isCheck}
+                      title="Mark as the untreated check for % control formulas"
+                      onChange={(e) => {
+                        const next = treatments.map((x, idx) =>
+                          idx === i ? { ...x, isCheck: e.target.checked } : x
+                        )
+                        setTreatments(next)
+                        saveTreatments(next)
+                      }}
+                    />
+                  </td>
                   {!readOnly && (
                     <td>
                       <button
@@ -296,7 +321,7 @@ export function ProtocolView(): JSX.Element {
                 {expanded.has(t.number) && (
                   <tr>
                     <td />
-                    <td colSpan={readOnly ? 3 : 4}>
+                    <td colSpan={readOnly ? 4 : 5}>
                       <TreatmentProgram
                         applications={snapshot!.applications}
                         crop={protocol.crop}
@@ -365,8 +390,12 @@ function CoreMeasurements({ readOnly }: { readOnly: boolean }): JSX.Element {
     applicationRef: '',
     daysAfter: null as number | null,
     timing: '',
-    subsamples: 1
+    subsamples: 1,
+    formula: ''
   })
+  const calc = draft.formula.trim().length > 0
+  const parsed = calc ? parseFormula(draft.formula) : null
+  const formulaError = parsed && !parsed.ok ? parsed.error : null
 
   const save = (next: MeasurementDef[]): void => {
     run('Saving measurements', async () => {
@@ -391,10 +420,11 @@ function CoreMeasurements({ readOnly }: { readOnly: boolean }): JSX.Element {
           [draft.measurementType, draft.partMeasured, label].filter(Boolean).join(' ') || 'Measurement',
         ordinal: defs.length,
         analyze: true,
-        subsamples: Math.max(1, draft.subsamples || 1)
+        subsamples: calc ? 1 : Math.max(1, draft.subsamples || 1),
+        formula: calc ? draft.formula.trim() : ''
       }
     ])
-    setDraft({ partMeasured: '', measurementType: '', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', subsamples: 1 })
+    setDraft({ partMeasured: '', measurementType: '', measurementUnit: '', applicationRef: '', daysAfter: null, timing: '', subsamples: 1, formula: '' })
   }
 
   const toggleAnalyze = (i: number): void => {
@@ -424,11 +454,18 @@ function CoreMeasurements({ readOnly }: { readOnly: boolean }): JSX.Element {
           <tbody>
             {defs.map((d, i) => (
               <tr key={d.id ?? i}>
-                <td>{d.measurementType || '—'}</td>
+                <td>
+                  {d.measurementType || '—'}
+                  {d.formula && (
+                    <div className="muted" style={{ fontSize: 11 }}>
+                      ƒ {d.formula}
+                    </div>
+                  )}
+                </td>
                 <td>{d.partMeasured || '—'}</td>
                 <td>{d.measurementUnit || '—'}</td>
                 <td>{timingLabel(d) || '—'}</td>
-                <td className="num">{d.subsamples ?? 1}</td>
+                <td className="num">{d.formula ? '—' : d.subsamples ?? 1}</td>
                 <td className="num">
                   <input
                     type="checkbox"
@@ -453,6 +490,7 @@ function CoreMeasurements({ readOnly }: { readOnly: boolean }): JSX.Element {
         <p className="muted">No core measurements defined{readOnly ? '.' : ' yet.'}</p>
       )}
       {!readOnly && (
+        <>
         <div className="row">
           <div style={{ width: 160 }}>
             <label>Measurement type</label>
@@ -493,13 +531,38 @@ function CoreMeasurements({ readOnly }: { readOnly: boolean }): JSX.Element {
               min={1}
               max={50}
               value={draft.subsamples}
+              disabled={calc}
+              title={calc ? 'Calculated columns have no subsamples' : undefined}
               onChange={(e) => setDraft({ ...draft, subsamples: Number(e.target.value) })}
             />
           </div>
-          <button className="primary" onClick={add}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label>Formula (optional → calculated column)</label>
+            <input
+              value={draft.formula}
+              placeholder="e.g. abbott([1])  or  ([1]+[2])/2"
+              onChange={(e) => setDraft({ ...draft, formula: e.target.value })}
+            />
+          </div>
+          <button className="primary" onClick={add} disabled={!!formulaError}>
             + Add measurement
           </button>
         </div>
+        {calc && (
+          <div style={{ marginTop: 6, fontSize: 12 }}>
+            {formulaError ? (
+              <span style={{ color: '#b00020' }}>⚠ {formulaError}</span>
+            ) : (
+              <span className="muted">
+                Reference measurements by column number —{' '}
+                {defs.map((d, i) => `[${i + 1}] ${d.description || d.measurementType || 'Measurement'}`).join('   ')}
+                {defs.length === 0 && 'no measurements to reference yet'}. Use control([n]) or
+                abbott([n]) for % of untreated control.
+              </span>
+            )}
+          </div>
+        )}
+        </>
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { Fragment, useMemo, type CSSProperties } from 'react'
 import { useStore, type DocKind, type DocColourBy } from '../../store'
 import { PlotGrid } from './PlotGrid'
 import { timingLabel, measurementDate } from '@shared/timing'
+import { isCalculated, plotValue } from '@shared/derive'
 import type { MeasurementHeader, Property, PrintProfile } from '@shared/types'
 
 const DOC_TITLE: Record<DocKind, string> = {
@@ -497,8 +498,13 @@ function DataSheetDoc({ prefilled, hidden }: { prefilled: boolean; hidden: Set<n
     const v = valueMap.get(`${h.id}:${plotId}:${s}`)
     return v === null || v === undefined ? '' : String(v)
   }
-  // One blank cell per single measurement; for subsample measurements, N stacked lines to record each.
+  // One blank cell per single measurement; for subsample measurements, N stacked lines to record
+  // each. Calculated columns are derived (never hand-entered) — always show the computed value.
   const entryCell = (h: MeasurementHeader, plotId: number): JSX.Element => {
+    if (isCalculated(h)) {
+      const v = plotValue(snapshot!, h, plotId)
+      return <td className="entry-cell num">{v === null ? '' : String(Math.round(v * 100) / 100)}</td>
+    }
     const n = subCountOf(h)
     if (n === 1) return <td className="entry-cell">{prefilled ? meanFor(h, plotId) : ''}</td>
     return (
@@ -557,8 +563,8 @@ function DataSheetDoc({ prefilled, hidden }: { prefilled: boolean; hidden: Set<n
               <th>Treatment</th>
               {headers.map((h) => (
                 <th key={h.id}>
-                  {headerTitleOf(h)}
-                  {subCountOf(h) > 1 ? ` (×${subCountOf(h)})` : ''}
+                  {isCalculated(h) ? `ƒ ${headerTitleOf(h)}` : headerTitleOf(h)}
+                  {!isCalculated(h) && subCountOf(h) > 1 ? ` (×${subCountOf(h)})` : ''}
                 </th>
               ))}
             </tr>

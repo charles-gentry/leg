@@ -40,8 +40,8 @@ describe('audit trail', () => {
   it('getMeasurementValue returns the prior value then the updated one', () => {
     // Minimal trial + plot + header to attach a value to.
     dao.replaceTreatments([
-      { number: 1, name: 'A', type: '', applications: [] },
-      { number: 2, name: 'B', type: '', applications: [] }
+      { number: 1, name: 'A', type: '', isCheck: false, applications: [] },
+      { number: 2, name: 'B', type: '', isCheck: false, applications: [] }
     ])
     const t = dao.listTreatments()
     const trialId = dao.replaceTrialWithPlots(
@@ -69,7 +69,7 @@ describe('audit trail', () => {
       applicationRef: '',
       daysAfter: null,
       timing: '',
-      growthStage: '',
+      formula: '', growthStage: '',
       measurementDate: '',
       assessedBy: '',
       description: 'Control',

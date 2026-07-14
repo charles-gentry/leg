@@ -4,6 +4,7 @@ import type { DataSheetGridRef } from 'react-datasheet-grid'
 import 'react-datasheet-grid/dist/style.css'
 import { useStore } from '../../store'
 import { Combobox } from '../../components/Combobox'
+import { isCalculated, measurementPlotValues } from '@shared/derive'
 import type { MeasurementHeader, MeasurementValue } from '@shared/types'
 
 // Index-signature shape (not an interface with required fields) so it stays structurally
@@ -56,6 +57,15 @@ export function DataEntryView(): JSX.Element {
 
   const maxSub = useMemo(() => Math.max(1, ...headers.map(subCount)), [headers])
 
+  // Calculated columns are derived (read-only): precompute their per-plot values.
+  const calcValues = useMemo(() => {
+    const m = new Map<number, Map<number, number | null>>()
+    for (const h of headers) if (isCalculated(h)) m.set(h.id!, measurementPlotValues(snapshot!, h))
+    return m
+  }, [snapshot, headers])
+  const calcCell = (h: MeasurementHeader, plotId: number): number | null =>
+    calcValues.get(h.id!)?.get(plotId) ?? null
+
   // Global expand/collapse: collapsed shows one row per plot (means, no Subsample column); expanded
   // shows every plot's subsample rows only (no base/mean row) with the Subsample column visible.
   const [expanded, setExpanded] = useState(false)
@@ -78,8 +88,11 @@ export function DataEntryView(): JSX.Element {
           treatment: treatmentName(p.treatmentId)
         }
         for (const h of headers) {
-          base[`h_${h.id}`] =
-            subCount(h) === 1 ? valueMap.get(`${h.id}:${p.id}:1`) ?? null : meanFor(h, p.id!)
+          base[`h_${h.id}`] = isCalculated(h)
+            ? calcCell(h, p.id!)
+            : subCount(h) === 1
+              ? valueMap.get(`${h.id}:${p.id}:1`) ?? null
+              : meanFor(h, p.id!)
         }
         out.push(base)
       } else {
@@ -96,7 +109,13 @@ export function DataEntryView(): JSX.Element {
             treatment: s === 1 ? treatmentName(p.treatmentId) : ''
           }
           for (const h of headers) {
-            row[`h_${h.id}`] = s <= subCount(h) ? valueMap.get(`${h.id}:${p.id}:${s}`) ?? null : null
+            row[`h_${h.id}`] = isCalculated(h)
+              ? s === 1
+                ? calcCell(h, p.id!)
+                : null
+              : s <= subCount(h)
+                ? valueMap.get(`${h.id}:${p.id}:${s}`) ?? null
+                : null
           }
           out.push(row)
         }
@@ -120,10 +139,14 @@ export function DataEntryView(): JSX.Element {
         : []),
       ...headers.map((h) => ({
         ...keyColumn(`h_${h.id}`, floatColumn),
-        title: title(h),
-        // Base row: multi-subsample cell is the read-only mean. Sub row: greyed past its count.
-        disabled: ({ rowData }: { rowData: GridRow }): boolean =>
-          rowData.kind === 'base' ? subCount(h) > 1 : (rowData.sub as number) > subCount(h)
+        // Calculated columns are derived — flag them with an ƒ and render read-only.
+        title: isCalculated(h) ? `ƒ ${title(h)}` : title(h),
+        // Calculated: always read-only. Measured base row: multi-subsample cell is the read-only
+        // mean. Sub row: greyed past its subsample count.
+        disabled: isCalculated(h)
+          ? true
+          : ({ rowData }: { rowData: GridRow }): boolean =>
+              rowData.kind === 'base' ? subCount(h) > 1 : (rowData.sub as number) > subCount(h)
       }))
     ]
   }, [headers, maxSub])
@@ -135,6 +158,7 @@ export function DataEntryView(): JSX.Element {
       const before = rows[i]
       const plotId = before.plotId as number
       for (const h of headers) {
+        if (isCalculated(h)) continue // derived, never written
         const key = `h_${h.id}`
         if (before[key] === row[key]) continue
         let subsample: number

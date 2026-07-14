@@ -175,9 +175,15 @@ tryCatch({
   })
 
   dfError <- tryCatch(df.residual(model), error = function(e) NA)
+  respSd <- tryCatch(sd(df$value), error = function(e) NA)
 
   if (!is.finite(dfError) || dfError < 1) {
     emitInsufficient("No residual degrees of freedom — the data isn't replicated enough for ANOVA (check for missing or excluded plots making the design unbalanced).", anovaRows)
+  } else if (!is.finite(respSd) || respSd < 1e-9) {
+    # Every observation is identical — no variability to partition, and the mean comparison would
+    # divide by a zero spread (a % control column reads 0 for every plot when the source data are
+    # uniform). This is a data issue, not a design one.
+    emitInsufficient("All observations are identical — there's no variation between plots to compare. (A calculated % control column reads 0 everywhere when its source measurements are uniform.) Enter data that varies to run the mean comparison.", anovaRows)
   } else {
     # Mean comparison via agricolae. Model form auto-extracts DFerror/MSerror.
     cmp <- tryCatch(switch(test,
