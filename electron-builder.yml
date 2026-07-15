@@ -30,3 +30,6 @@ publish:
   provider: github
   owner: charles-gentry
   repo: ART
+  # Publish tagged builds as a live release, not a draft (the default), so the
+  # in-app auto-updater sees them immediately.
+  releaseType: release
