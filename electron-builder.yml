@@ -20,8 +20,15 @@ extraResources:
 win:
   target: nsis
 mac:
-  target: dmg
+  target:
+    - target: dmg
+      arch: arm64
   category: public.app-category.productivity
+  # No Apple Developer cert on CI: build an unsigned DMG. `identity: null`
+  # stops electron-builder from picking up an unrelated signing cert. Users
+  # must strip Gatekeeper quarantine on first run (see README), and in-app
+  # auto-update is disabled on macOS because it requires a signed app.
+  identity: null
 linux:
   target: AppImage
   category: Science

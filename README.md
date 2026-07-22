@@ -120,8 +120,18 @@ chmod +x ART-*.AppImage   # make it executable
 admin rights). The installer is currently **unsigned**, so Windows SmartScreen may warn on first
 run — choose *More info → Run anyway*.
 
-Both builds **auto-update**: on launch the app checks Releases for a newer version and downloads it
-in the background, prompting you to restart when it's ready.
+**macOS** (Apple Silicon) — a **DMG** (`ART-*-arm64.dmg`); open it and drag ART to Applications. The
+app is currently **unsigned and un-notarized**, so Gatekeeper blocks it on first launch. Strip the
+download quarantine once from a terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/ART.app   # then open normally
+```
+
+The Linux and Windows builds **auto-update**: on launch the app checks Releases for a newer version,
+downloads it in the background, and prompts you to restart when it's ready. The **macOS** build does
+*not* auto-update — `electron-updater` requires a signed app to apply macOS updates — so grab new
+DMGs from the Releases page manually.
 
 The only external requirement is **R** (for the statistics engine), on every platform. Install base
 R once from [r-project.org](https://www.r-project.org/), then let the app's setup banner install the
@@ -135,12 +145,12 @@ npm run dist      # build a distributable for the host platform locally, no publ
 ```
 
 `npm run dist` builds the target for whatever OS you run it on (an AppImage on Linux, an NSIS
-`.exe` installer on Windows). Because `better-sqlite3` is a native module, a Windows installer must
-be built on Windows — cross-building from Linux is not supported.
+`.exe` installer on Windows, an arm64 DMG on macOS). Because `better-sqlite3` is a native module,
+each platform's distributable must be built on that platform — cross-building is not supported.
 
 The `.R` scripts are shipped as `extraResources`; R itself is a prerequisite and is not bundled.
-The app icon lives at `build/icon.png` (electron-builder derives the Windows icon from it) — replace
-it with a real logo before a public release.
+The app icon lives at `build/icon.png` (electron-builder derives the Windows `.ico` and macOS
+`.icns` from it) — replace it with a real logo before a public release.
 
 To cut a release: bump `version` in `package.json`, then tag and push:
 
@@ -148,10 +158,11 @@ To cut a release: bump `version` in `package.json`, then tag and push:
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-The `Release` GitHub Actions workflow builds on both `ubuntu-latest` and `windows-latest` and
-publishes each platform's distributable — the Linux AppImage (with `latest-linux.yml`) and the
-Windows NSIS installer (with `latest.yml`) — to the GitHub Release for that tag, so the in-app
-auto-updater sees them on every platform.
+The `Release` GitHub Actions workflow builds on `ubuntu-latest`, `windows-latest`, and
+`macos-latest` and publishes each platform's distributable — the Linux AppImage (with
+`latest-linux.yml`), the Windows NSIS installer (with `latest.yml`), and the macOS arm64 DMG (with
+`latest-mac.yml`) — to the GitHub Release for that tag. The Linux and Windows auto-updaters pick up
+new builds automatically; macOS updates are manual (unsigned app).
 
 ## Architecture
 

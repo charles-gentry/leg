@@ -51,3 +51,27 @@ jobs:
       - run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # postinstall runs `electron-builder install-app-deps`, rebuilding
+      # better-sqlite3 for the macOS (arm64) Electron ABI — correct for packaging.
+      - run: npm ci
+
+      # Build the renderer/main/preload, then package + publish the arm64 DMG
+      # and its latest-mac.yml manifest to the GitHub Release. The build is
+      # unsigned (identity: null in electron-builder.yml); CSC_IDENTITY_AUTO_DISCOVERY
+      # is disabled so electron-builder never tries to sign with a stray keychain cert.
+      - run: npm run build
+      - run: npx electron-builder --mac --arm64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false

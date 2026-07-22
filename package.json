@@ -25,7 +25,8 @@
     "package": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "release": "npm run build && electron-builder --linux --publish always",
-    "release:win": "npm run build && electron-builder --win --publish always"
+    "release:win": "npm run build && electron-builder --win --publish always",
+    "release:mac": "npm run build && electron-builder --mac --arm64 --publish always"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
